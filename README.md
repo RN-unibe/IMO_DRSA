@@ -22,7 +22,7 @@ Generate a sample from the current approximation of the Pareto optimal set.
 
 4. DM marks "good" solutions.
 
-5. DRSA derives rules like: "$$f_1(x) \leq \alpha_1 \quad \text{and} \quad f_2(x) \leq \alpha_2, then x is good.$$"
+5. DRSA derives rules like: "$\text{if } f_1(x) \leq \alpha_1 \text{ and } f_2(x) \leq \alpha_2 \text{, then x is good.}$"
 
 6. Rules are reviewed and selected by the DM.
 
