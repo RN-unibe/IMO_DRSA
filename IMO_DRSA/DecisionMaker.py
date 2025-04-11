@@ -6,7 +6,7 @@ class BaseDM:
         pass
 
 
-    def give_input(self, rules):
+    def check_solutions(self, rules):
         pass
 
     def select_rules(self, pareto_front, pareto_set):
@@ -18,3 +18,6 @@ class StandardDM(BaseDM):
         super().__init__()
 
 
+class DummyDM(BaseDM):
+    def __init__(self):
+        super().__init__()

@@ -211,21 +211,23 @@ class IMO_DRSA():
         while n_iter < self.max_iter_:
         # LOOP:
             # CALCULATION:
-            #1. Generate Pareto Front
+            #1. Sample solutions from the Pareto set.
             pareto_front, pareto_set = self._pareto(n_gen=n_gen)
 
             #DIALOGUE:
-            #2. Present the sample to the DM, possibly together with association rules showing relationships between
-            #   attainable values of objective functions in the Pareto optimal set.
+            #2. Present sample + derived association rules to the DM.
 
             if visualise:
                 self._visualise(pareto_front, pareto_set)
             #get input from DM
 
-            self.DM_.give_input(pareto_front, pareto_set)
+            satisfied = self.DM_.check_solutions(pareto_front, pareto_set)
 
-            #3. If the DM is satisfied with one solution from the sample, then this is the most preferred solution and the
-            #   procedure stops. Otherwise, continue.
+
+
+            #3. If satisfied, stop; otherwise:
+            if satisfied:
+                break
 
             #4. Ask the DM to indicate a subset of “good” solutions in the sample.
 
