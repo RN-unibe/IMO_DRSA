@@ -1,4 +1,5 @@
 from unittest import TestCase
+from pymoo.problems import get_problem # To get test problems
 
 
 class TestIMO_DRSA(TestCase):

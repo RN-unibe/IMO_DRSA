@@ -6,11 +6,13 @@ class BaseDM:
         pass
 
 
-    def check_solutions(self, rules):
+    def check_solutions(self, pareto_front, pareto_set):
         pass
 
-    def select_rules(self, pareto_front, pareto_set):
-        return None
+    def select_rules(self, rules):
+        sorting = []
+
+        return sorting
 
 
 class StandardDM(BaseDM):
