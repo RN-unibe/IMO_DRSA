@@ -28,16 +28,18 @@ from IMO_DRSA.problem import DRSAProblem
 import types
 import json
 from datetime import datetime
+from collections import defaultdict
 
 class DRSA():
 
     def __init__(self,
-                 U,
+                 U:ndarray,
                  F,
                  d,
                  DM:BaseDM,
                  pareto_front=None,
-                 pareto_set=None):
+                 pareto_set=None,
+                 vectorised_f:bool=True):
         """
         Dominance-based Rough Set Approach (DRSA) "is a methodology of multiple criteria decision analysis aiming at obtaining
         a representation of the DM’s preferences in terms of easily understandable “if ..., then ...” decision rules,
@@ -46,12 +48,33 @@ class DRSA():
 
 
         """
+
+
         self.U_ = U
         self.F_ = F
         self.d_ = d
         self.DM_ = DM
+
+        self.n_vars_ = len(self.U_)
+        self.n_classes_ = 0 #Init later?
+
         # I = [i for i in range(F.size)]
-        self.P_ = F # This contains a subset of the FUNCTIONS of F_, NOT it's INDICES! I think this is given by DM
+        self.P_ = F # This contains a subset of the FUNCTIONS of F_, NOT it's INDICES!
+
+        if not vectorised_f:
+            self.f_F_ = np.array([[f(x) for f in self.F_] for x in self.U_], dtype=float)
+            self.f_P_ = np.array([[f(x) for f in self.P_] for x in self.U_], dtype=float)
+
+        else :
+            self.f_F_ = np.column_stack([f(self.U_) for f in self.F_])
+            self.f_P_ = np.column_stack([f(self.U_) for f in self.P_])
+
+        self.Cl_ = None # The sorting of U, instance of set()
+        self.upward_ = None
+        self.downward_ = None
+
+        self.p_dominating_ = None
+        self.p_dominated_ = None
 
         self.pareto_front_ = pareto_front
         self.pareto_set_ = pareto_set
@@ -59,7 +82,53 @@ class DRSA():
 
         self.iteration_logs = []
 
+        self.dominates_ = {}
+        self.dominated_by_ = {}
 
+        self.lower_approx_geq_ = {}
+        self.lower_approx_leq_ = {}
+        self.upper_approx_geq_ = {}
+        self.upper_approx_leq_ = {}
+
+        self.bn_P_t_upper_ = {}
+        self.bn_P_t_lower_ = {}
+
+    def fit(self):
+        """
+        Full DRSA pipeline:
+          1. Sort U into decision classes (from self.d_)
+          2. Compute Cl≥_t and Cl≤_t unions
+          3. Compute dominance cones D⁺(x) and D⁻(x)
+          4. Compute P-lower and P-upper approximations
+          5. Compute boundary regions
+
+        """
+
+        # Step 1 – Sort U into classes
+        self._sorting()  # must populate self.Cl_ as a list of sets
+        self.n_classes_ = len(self.Cl_)
+
+        # Step 2 – Compute class unions
+        self._compute_unions()
+
+        # Step 3 – Compute all dominance cones
+        self.p_dominating_ = {}
+        self.p_dominated_ = {}
+        for x in self.U_:
+            self._compute_P_dominance_sets(x)
+
+        # Step 4 – Initialize approximation dicts
+        self.lower_approx_geq_ = {}
+        self.lower_approx_leq_ = {}
+        self.upper_approx_geq_ = {}
+        self.upper_approx_leq_ = {}
+
+        self._compute_P_approximations()
+
+        # Step 5 – Compute boundary regions
+        self.bn_P_t_upper_ = {}
+        self.bn_P_t_lower_ = {}
+        self.p_boundaries()
 
     def create_constraints(self):
         """
@@ -114,70 +183,113 @@ class DRSA():
 
 
 
-    def _gen_sorting(self):
-        pass
+    def _sorting(self):
+        """
+        Groups U into decision classes based on self.d_ (should return class indices like 0, 1, 2).
+        Populates self.Cl_ as a list of sets, sorted by class index.
+        """
 
-    def _gen_unions(self, t):
-        upward = [i for i in range(len(self.d_)) if self.d_[i] >= t]
-        downward = [i for i in range(len(self.d_)) if self.d_[i] <= t]
+        classes = defaultdict(set)
+        for i, label in enumerate(self.d_):
+            classes[label].add(i)
 
-        return upward, downward
-
-
-    def _gen_p_dominating_set(self, x):
-        return [y for y in self.U_ if all(f_i(y) >= f_i(x) for f_i in self.P_)]
-
-    def _gen_p_dominated_set(self, x):
-        return [y for y in self.U_ if all(f_i(y) <= f_i(x) for f_i in self.P_)]
+        # Sort by class index to ensure order: C0, C1, C2, ...
+        self.Cl_ = [classes[i] for i in sorted(classes)]
 
 
-    def _gen_p_lower_approx(self, cl_ge_t, t):
-        return [x for x in self.U_ if all(self.d_[y] >= t for y in self._gen_p_dominating_set(x))]
+    def _compute_unions(self):
+        """
 
-    def _gen_p_upper_approx(self, cl_ge_t, t):
-        return [x for x in self.U_ if any(y in cl_ge_t for y in self._gen_p_dominated_set(x))]
+        """
+        for t in range(0, len(self.Cl_) - 1):
+            self.upward_[t] = [set().union(*self.Cl_[i:]) for i in range(t, len(self.Cl_))]
+            self.downward_[t] = [set().union(*self.Cl_[:i + 1]) for i in range(t)]
 
+    def _compute_P_dominance_sets(self, x: int):
+        """
+        Computes:
+          - The P-dominating set of object x:
+              D⁺(x) = { y ∈ U | f_P(x) ≥ f_P(y) }
+          - The P-dominated set of object x:
+              D⁻(x) = { y ∈ U | f_P(x) ≤ f_P(y) }
 
-    def _gen_p_lower_approx(self, cl_t):
-        # P_
-        # assert inclusion property
-        # assert complementarity property
-        pass
+        Stores the result in:
+            self.p_dominating_[x] = set of indices y dominated by x
+            self.p_dominated_[x]  = set of indices y dominating x
 
+        :param x: Index of the object in self.f_P_
+        """
 
-    def _gen_p_upper_approx(self, cl_t):
-        # P-
-        # assert inclusion property
-        # assert complementarity property
-        pass
-    
-    def _gen_p_boundaries(self, cl_t):
+        dominates_mask = np.all(self.f_P_[x] >= self.f_P_, axis=1)
+        dominated_mask = np.all(self.f_P_[x] <= self.f_P_, axis=1)
+
+        self.p_dominating_[x] = set(np.where(dominates_mask)[0])
+        self.p_dominated_[x] = set(np.where(dominated_mask)[0])
+
+    def _compute_P_approximations(self):
+        for t in range(0, len(self.Cl_) - 1):
+            Cl_geq_t = self.upward_[t]  # Cl_t^{>=}
+            Cl_leq_t = self.downward_[t]  # Cl_t^{<=}
+
+            self.lower_approx_geq_[t] = {x for x in self.U_ if self.p_dominating_[x].issubset(Cl_geq_t)}
+            self.lower_approx_leq_[t] = {x for x in self.U_ if self.p_dominated_[x].issubset(Cl_leq_t)}
+
+            self.upper_approx_geq_[t] = {x for x in self.U_ if not self.p_dominated_[x].isdisjoint(Cl_geq_t)}
+            self.upper_approx_leq_[t] = {x for x in self.U_ if not self.p_dominating_[x].isdisjoint(Cl_leq_t)}
+
+    def p_boundaries(self):
         # Bn_p
-        pass
+        for t in range(0, len(self.Cl_)-1):
+            self.bn_P_t_upper_[t] = self.upper_approx_geq_[t] - self.lower_approx_geq_[t]
+            self.bn_P_t_lower_[t] = self.upper_approx_leq_[t] - self.lower_approx_leq_[t]
 
-    def _gen_p_consistent_set(self, bn_p, cl_t_upper, cl_t_lower):
-        # Cn_p
-        pass
+    def compute_p_consistent_set(self):
+        """
+        Computes the P-consistent set Cn_P
+        and stores it in self.consistent_set_
+        """
+        boundary_union = set()
 
-    def _gen_reduct(self, cl):
-        pass
+        # Union over all t for both boundaries
+        for t in range(self.n_classes_):
+            if t in self.bn_P_t_upper_:
+                boundary_union.update(self.bn_P_t_upper_[t])
+            if t in self.bn_P_t_lower_:
+                boundary_union.update(self.bn_P_t_lower_[t])
 
-    def _gen_core(self, cl):
-        pass
+        self.p_consistent_set_ = set(self.U_) - boundary_union
 
 
-    def _is_robust(self, rule) -> bool:
+    def is_p_consistent(self, x):
+
+        if x in self.p_consistent_set_ :
+            return True
+
         return False
 
-    def _relative_support(self):
+    def reduct(self):
+        gamma_p = self.approx_quality()
+        # TODO: Need to be able to do everything it with F as well!!!!!
+
+
+
+
+    def core(self, cl):
+        pass
+
+
+    def is_robust(self, rule) -> bool:
+        return False
+
+    def relative_support(self):
         pass
 
     def confidence_ration(self):
         pass
 
-    def approx_quality(self, cn_p):
+    def approx_quality(self):
         # gamma_p(Cl)
-        pass
+        return len(self.p_consistent_set_) / len(self.U_)
 
 
     def set_is_minimal(self) -> bool:
