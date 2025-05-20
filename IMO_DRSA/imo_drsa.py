@@ -1,122 +1,123 @@
 import numpy as np
 import pandas as pd
 from matplotlib.pyplot import xcorr
-from numpy.f2py.auxfuncs import throw_error
-from pymoo.core.algorithm import Algorithm
 
-from sklearn.base import BaseEstimator
-
-from pymoo.termination import get_termination
-from pymoo.optimize import minimize
-from pymoo.algorithms.base.genetic import GeneticAlgorithm
 from pymoo.algorithms.moo.nsga2 import NSGA2
 
-from pymoo.core.problem import ElementwiseProblem
-from pymoo.operators.crossover.sbx import SBX
-from pymoo.operators.mutation.pm import PM
-from pymoo.operators.sampling.rnd import FloatRandomSampling
-
-from itertools import chain, combinations
-
-
-import types
-import json
-from datetime import datetime
-from collections import defaultdict
 
 from pymoo.optimize import minimize
 from pymoo.visualization.scatter import Scatter
 
 from IMO_DRSA.problem import DRSAProblem
+from IMO_DRSA.drsa import DRSA
 
 
 
-class IMO_DRSA_Controller():
+class IMO_DRSA():
 
     def __init__(self,
                  U=None,
-                 F=None,
-                 d=None,
-                 DM=None,
-                 max_iter: int = 200):
+                 F=None):
         """
         Interactive Multi-objective Optimization using Dominance-based Rough Set Approach (IMO-DRSA).
 
         :param U: the universe of objects
         :param F: the set of all objective functions
-        :param d: the decision attribute
         :param DM: the decision maker (DM)
         :param max_iter:
         """
 
-        self.DM_ = DM
-        self.U_ = U
-        self.F_ = F
-        self.d_ = d
-        self.max_iter_ = max_iter
-
-        self.algorithm_ = NSGA2(pop_size=100) #TODO: params
-        self.drsa_ = DRSA(U, F, d, DM, pareto_front=None, pareto_set=None)
+        self.U = U
+        self.F = F
+        self.P = F
+        self.I = [i for i in range(0, len(F)-1)]
 
 
-
-
-
-    def solve(self, n_gen:int=200, visualise:bool=False) -> bool:
+    def solve(self, dm, visualise:bool=False, max_iter:int=5) -> bool:
         """
-        :param n_gen:
 
         :return: True, if the process finished successfully. False, otherwise.
         """
+        drsa = DRSA()
+        constraints = []
+        X = self.U
 
-        if not self.F_:
-            raise Exception("X is undefined")
+        n_iter = 0
+        while n_iter < max_iter:
+            # Calc pareto 1
+            # get association rules 2
+            # Ask DM 3, 4
+            # DRSA 5
+            # Show DM 6, 7
+            # make constraints 8
 
-        if not self.d_:
-            raise Exception("y is undefined")
-
-        pareto_front, pareto_set = None, None
-
-        n_iter:int = 0
-        while n_iter < self.max_iter_:
-            pareto_front, pareto_set
-
-            sorting = self.DM_.check_solutions(pareto_front, pareto_set)
-
-
-
-        return True
+            X, T = self.pareto_front(X, constraints)
 
 
+            association_rules = self.get_association_rules(T)
 
+            d = dm.classify(T, association_rules) # the decision attribute
+
+            drsa.fit(T, d, self.I)
+            reduct = drsa.find_reducts()[0]
+
+            self.set_P(reduct)
+
+            rules = drsa.induce_rules(reduct, union_type='up', t=2)
+
+            rules = dm.select(rules)
+
+            new_constraints = self.generate_constraints(rules)
+
+            constraints.extend(new_constraints)
+
+            if dm.is_satisfied():
+                return True
+
+        return False
 
 
 
     def _visualise(self, pareto_front, pareto_set) -> None:
         pass
 
-    def incorporate_rules(self, accepted_rules):
-        self.rules_ = accepted_rules # Is this enough?
+    def get_association_rules(self, T):
+        pass
 
+    def pareto_front(self, X, constraints=None, pop_size=100, n_gen=200):
+        """
+        Compute the Pareto front using NSGA2.
 
+        :param X: the current universe of objects
+        :param constraints: List of inequality constraint functions g_i(x) <= 0. Defaults to None.
+        :type constraints: Optional[List[Callable[[np.ndarray], float]]]
+        :param pop_size: Population size for NSGA2. Defaults to 100.
+        :type pop_size: int
+        :param n_gen: Number of generations to run. Defaults to 200.
+        :type n_gen: int
+        :return: Tuple containing:
+                 - X (np.ndarray): Decision variable matrix, shape (n_solutions, n_variables).
+                 - F (np.ndarray): Objective value matrix, shape (n_solutions, n_objectives).
+        :rtype: Tuple[np.ndarray, np.ndarray]
+        """
+        if constraints is None:
+            constraints = []
 
+        xl = np.array([b[0] for b in X], dtype=float)
+        xu = np.array([b[1] for b in X], dtype=float)
 
+        problem = DRSAProblem(P=self.P, constr=constraints, n_var=len(self.P), n_obj=len(X), n_ieq_constr=len(constraints), xl=xl, xu=xu)
 
+        algorithm = NSGA2(pop_size=pop_size)
 
+        res = minimize(problem, algorithm, termination=('n_gen', n_gen), verbose=False)
 
-if __name__ == "__main__":
+        return res.X, res.F
 
-    # TODO
-    drsa_rob = DRSAProblem(n_var=2, n_obj=2, n_ieq_constr=2, xl=np.array([-2, -2]), xu=np.array([2, 2]))
-    ref_points = np.array([[0.5, 0.2], [0.1, 0.6]])
-    imo_drsa = IMO_DRSA_Controller(ref_points=ref_points, pop_size=100)
+    def generate_constraints(self, rules):
+        pass
 
-    res = minimize(drsa_rob,
-                   imo_drsa,
-                   ("n_gen", 100),
-                   verbose=False,
-                   seed=1)
+    def set_P(self, reduct):
+        mask = np.isin(self.P, reduct)
+        self.P = self.P[mask]
 
-    plot = Scatter()
-    plot.add(res.F, edgecolor="red", facecolor="none")
-    plot.show()

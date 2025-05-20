@@ -3,13 +3,20 @@ class BaseDM:
     def __init__(self, d):
         self.d = d
 
+    def classify(self, T, association_rules):
+        """
+
+        :param T:
+        :param association_rules:
+        :return: classification of the values in T with either 2 (good) or 1 (other)
+        """
+        pass
 
     def choose_decision_rules(self, rules):
         pass
 
-    def get_decision_atribute(self):
-        return self.d
-
+    def is_satisfied(self, T, rules) -> bool:
+        return False
 
 class StandardDM(BaseDM):
     def __init__(self, d):

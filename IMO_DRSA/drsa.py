@@ -24,24 +24,26 @@ class DRSA:
         :param d: NumPy array of length N, integer‐encoded decision classes (1, ..., m)
         :param criteria: list of column indices in X to use as F={f1,...,fn}
         """
-        if X is not None and d is not None and criteria is not None:
+        if (X is not None) and (d is not None) and (criteria is not None):
             self.fit(X, d, criteria)
 
 
-    def fit(self, X: np.ndarray, d: np.ndarray, criteria: list):
+    def fit(self, T: np.ndarray, d: np.ndarray, criteria: list):
         """
-        :param X: NumPy array with shape (N, n), each row is an object, columns are criteria evaluated on that object
+        :param T: NumPy array with shape (N, n), each row is an object, columns are criteria evaluated on that object
         :param d: NumPy array of length N, integer‐encoded decision classes (1, ..., m)
         :param criteria: list of column indices in X to use as F={f1,...,fn}
         """
-        self.X = X
+        self.T = T
         self.d = d
         self.criteria_F = criteria
 
-        self.N, self.n = X.shape
+        self.N, self.n = T.shape
         self.m = int(d.max())
 
-        self._sorted_idx = {i: np.argsort(self.X[:, i]) for i in self.criteria_F}
+        #self._sorted_idx = {i: np.argsort(self.T[:, i]) for i in self.criteria_F}
+
+
 
 
     # ------------------------------------------------------------------
@@ -60,7 +62,7 @@ class DRSA:
         for i in criteria_P:
             # for criterion i, y dominates x if X[y,i] >= X[x,i]
             # broadcast comparison
-            mask &= (self.X[:, i][:, None] >= self.X[:, i][None, :])
+            mask &= (self.T[:, i][:, None] >= self.T[:, i][None, :])
 
         return mask  # mask[y, x] == True iff y P-dominates x
 
@@ -76,7 +78,7 @@ class DRSA:
         mask = np.ones((self.N, self.N), dtype=bool)
 
         for i in criteria_P:
-            mask &= (self.X[:, i][:, None] <= self.X[:, i][None, :])
+            mask &= (self.T[:, i][:, None] <= self.T[:, i][None, :])
 
         return mask  # mask[y, x] == True iff x P-dominates y
 
@@ -207,7 +209,7 @@ class DRSA:
         """
         rules = []
 
-        # 1. collect candidate profiles from either lower or upper approximation
+        # Collect candidate profiles from either lower or upper approximation
         if union_type == 'up':
             lower = self.lower_approx_up(criteria_P, t)
             upper = self.upper_approx_up(criteria_P, t)
@@ -216,12 +218,12 @@ class DRSA:
 
             # Build rules “if fi(x) >= ri for i in P then x in Cl^{>=t}” from bases
             for idx in bases:
-                profile = {i: self.X[idx, i] for i in criteria_P} 
+                profile = {i: self.T[idx, i] for i in criteria_P}
 
                 # compute support & confidence
                 mask = np.ones(self.N, dtype=bool) # Cn set
                 for i, fx in profile.items():
-                    mask &= (self.X[:, i] >= fx)
+                    mask &= (self.T[:, i] >= fx)
 
                 support = mask.sum() / self.N
                 confidence = (self.d[mask] >= t).mean()
@@ -230,12 +232,12 @@ class DRSA:
             
             
             for idx in possibles:
-                profile = {i: self.X[idx, i] for i in criteria_P} 
+                profile = {i: self.T[idx, i] for i in criteria_P}
 
                 mask = np.ones(self.N, dtype=bool)
 
                 for i, fx in profile.items():
-                    mask &= (self.X[:, i] >= fx)
+                    mask &= (self.T[:, i] >= fx)
 
                 support = mask.sum() / self.N
                 confidence = (self.d[mask] >= t).mean()
@@ -250,12 +252,12 @@ class DRSA:
 
             # Build rules “if fi(x) <= ri for i in P then x in Cl^{<=t}” from bases
             for idx in bases:
-                profile = {i: self.X[idx, i] for i in criteria_P}
+                profile = {i: self.T[idx, i] for i in criteria_P}
 
                 # compute support & confidence
                 mask = np.ones(self.N, dtype=bool)  # Cn set
                 for i, fx in profile.items():
-                    mask &= (self.X[:, i] <= fx)
+                    mask &= (self.T[:, i] <= fx)
 
                 support = mask.sum() / self.N
                 confidence = (self.d[mask] <= t).mean()
@@ -263,12 +265,12 @@ class DRSA:
                 rules.append((profile, f'd <= {t}', support, confidence, 'certain'))
 
             for idx in possibles:
-                profile = {i: self.X[idx, i] for i in criteria_P}
+                profile = {i: self.T[idx, i] for i in criteria_P}
 
                 mask = np.ones(self.N, dtype=bool)
 
                 for i, fx in profile.items():
-                    mask &= (self.X[:, i] <= fx)
+                    mask &= (self.T[:, i] <= fx)
 
                 support = mask.sum() / self.N
                 confidence = (self.d[mask] <= t).mean()
@@ -284,6 +286,13 @@ class DRSA:
 
 
     def explain_rules(self, rules, verbose:bool=False):
+        """
+        Just write them into If-then statements.
+
+        :param rules:
+        :param verbose:
+        :return:
+        """
         explain = []
         for cond, concl, support, conf, kind in rules:
             cond_str = " AND ".join(f"f_{i + 1} >= {v}" for i, v in cond.items())
@@ -294,6 +303,9 @@ class DRSA:
                 print(rule_string)
 
         return explain
+
+
+    #def run(self):
 
     # ------------------------------------------------------------------
     # Getters and Setters

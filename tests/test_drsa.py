@@ -84,4 +84,4 @@ class TestDRSA(TestCase):
 
         rules = drsa.induce_rules((0, 1), union_type='up', t=2)
 
-        drsa.explain_rules(rules, verbose=False)
+        drsa.explain_rules(rules, verbose=True)
