@@ -4,7 +4,7 @@ import numpy as np
 from pymoo.optimize import minimize
 from pymoo.visualization.scatter import Scatter
 
-from IMO_DRSA.algorithm import IMO_DRSA
+from IMO_DRSA.drsa import IMO_DRSA
 from IMO_DRSA.problem import DRSAProblem
 
 

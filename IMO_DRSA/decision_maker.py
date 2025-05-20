@@ -1,25 +1,33 @@
 
-
-
 class BaseDM:
-    def __init__(self):
+    def __init__(self, d):
+        self.d = d
+
+
+    def choose_decision_rules(self, rules):
         pass
 
-
-    def check_solutions(self, pareto_front, pareto_set):
-        pass
-
-    def select_rules(self, rules):
-        sorting = []
-
-        return sorting
+    def get_decision_atribute(self):
+        return self.d
 
 
 class StandardDM(BaseDM):
-    def __init__(self):
-        super().__init__()
+    def __init__(self, d):
+        BaseDM.__init__(self, d)
+
+    def choose_decision_rules(self, rules):
+        chosen = []
+
+        for rule in rules:
+            if rule[3] == 'certain':
+                chosen.append(rule)
+
+        return chosen
 
 
 class DummyDM(BaseDM):
-    def __init__(self):
-        super().__init__()
+    def __init__(self, d):
+        BaseDM.__init__(self, d)
+
+
+
