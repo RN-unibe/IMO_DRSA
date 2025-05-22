@@ -12,11 +12,14 @@ class BaseDM:
         """
         pass
 
-    def choose_decision_rules(self, rules):
-        pass
+    def select(self, rules):
+        return rules
 
-    def is_satisfied(self, T, rules) -> bool:
+    def is_satisfied(self, X, T, rules) -> bool:
         return False
+
+
+
 
 class StandardDM(BaseDM):
     def __init__(self, d):

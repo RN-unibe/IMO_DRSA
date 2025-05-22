@@ -1,6 +1,7 @@
+from typing import List, Callable
+
 import numpy as np
 import pandas as pd
-from matplotlib.pyplot import xcorr
 
 from pymoo.algorithms.moo.nsga2 import NSGA2
 
@@ -8,6 +9,7 @@ from pymoo.algorithms.moo.nsga2 import NSGA2
 from pymoo.optimize import minimize
 from pymoo.visualization.scatter import Scatter
 
+from IMO_DRSA.decision_maker import BaseDM
 from IMO_DRSA.problem import DRSAProblem
 from IMO_DRSA.drsa import DRSA
 
@@ -16,31 +18,40 @@ from IMO_DRSA.drsa import DRSA
 class IMO_DRSA():
 
     def __init__(self,
-                 U=None,
-                 F=None):
+                 U:np.ndarray,
+                 F:List[Callable[[np.ndarray], float]]):
         """
         Interactive Multi-objective Optimization using Dominance-based Rough Set Approach (IMO-DRSA).
 
-        :param U: the universe of objects
-        :param F: the set of all objective functions
+        :param U: the universe of objects, numpy.ndarray of shape (N, n_var)
+        :param F: the set of all objective functions, List of functions, i.e., callables
         :param DM: the decision maker (DM)
         :param max_iter:
         """
+        
+        assert isinstance(U, np.ndarray)
+        assert U is not None
+
+        
+        assert isinstance(F, List)
+        assert F is not None
 
         self.U = U
         self.F = F
-        self.P = F
-        self.I = [i for i in range(0, len(F)-1)]
+
+        self.drsa = DRSA()
 
 
-    def solve(self, dm, visualise:bool=False, max_iter:int=5) -> bool:
+    def solve(self, dm:BaseDM, visualise:bool=False, max_iter:int=5) -> bool:
         """
 
         :return: True, if the process finished successfully. False, otherwise.
         """
-        drsa = DRSA()
+
         constraints = []
-        X = self.U
+        rules = []
+        P = self.F
+        I = [i for i in range(0, len(P))]
 
         n_iter = 0
         while n_iter < max_iter:
@@ -51,19 +62,33 @@ class IMO_DRSA():
             # Show DM 6, 7
             # make constraints 8
 
-            X, T = self.pareto_front(X, constraints)
+            X, new_T = self.pareto_front(self.U, P, constraints)
 
+
+
+            if len(X) == 0:
+                print("Infeasible constraint set. Asking DM to revise.")
+
+                # ask dm to revise
+
+                return False
+
+            if dm.is_satisfied(X, new_T, rules): #Not sure if I need X here, but for now keep it
+                return True
+
+            T = new_T
 
             association_rules = self.get_association_rules(T)
 
-            d = dm.classify(T, association_rules) # the decision attribute
+            d = dm.classify(T, association_rules) # the decision attribute, must be either 1 (other) or 2 (good)
 
-            drsa.fit(T, d, self.I)
-            reduct = drsa.find_reducts()[0]
+            self.drsa.fit(T, d, I)
+            reduct = self.drsa.find_reducts()[0] #For now, just choose the first available reduct
 
-            self.set_P(reduct)
+            P = P[reduct]
+            I = [i for i in range(0, len(P))]
 
-            rules = drsa.induce_rules(reduct, union_type='up', t=2)
+            rules = self.drsa.induce_rules(reduct, union_type='up', t=2)
 
             rules = dm.select(rules)
 
@@ -71,8 +96,9 @@ class IMO_DRSA():
 
             constraints.extend(new_constraints)
 
-            if dm.is_satisfied():
-                return True
+
+
+            n_iter += 1
 
         return False
 
@@ -84,40 +110,59 @@ class IMO_DRSA():
     def get_association_rules(self, T):
         pass
 
-    def pareto_front(self, X, constraints=None, pop_size=100, n_gen=200):
+    def pareto_front(self, U, P, constraints:List[Callable[[np.ndarray], float]]=None, pop_size=100, n_gen=200):
         """
         Compute the Pareto front using NSGA2.
 
-        :param X: the current universe of objects
+        :param U: the current universe of objects
+        :param P: the current set of criteria
         :param constraints: List of inequality constraint functions g_i(x) <= 0. Defaults to None.
-        :type constraints: Optional[List[Callable[[np.ndarray], float]]]
         :param pop_size: Population size for NSGA2. Defaults to 100.
-        :type pop_size: int
         :param n_gen: Number of generations to run. Defaults to 200.
-        :type n_gen: int
         :return: Tuple containing:
                  - X (np.ndarray): Decision variable matrix, shape (n_solutions, n_variables).
-                 - F (np.ndarray): Objective value matrix, shape (n_solutions, n_objectives).
+                 - T (np.ndarray): Objective value matrix, shape (n_solutions, n_objectives).
         :rtype: Tuple[np.ndarray, np.ndarray]
         """
-        if constraints is None:
-            constraints = []
 
-        xl = np.array([b[0] for b in X], dtype=float)
-        xu = np.array([b[1] for b in X], dtype=float)
 
-        problem = DRSAProblem(P=self.P, constr=constraints, n_var=len(self.P), n_obj=len(X), n_ieq_constr=len(constraints), xl=xl, xu=xu)
+        xl = np.min(U, axis=0)
+        xu = np.max(U, axis=0)
+
+        delta = xu - xl
+        delta[delta == 0] = 1e-6  # prevent identical bounds
+        margin = 0.05
+        xl = xl - margin * delta
+        xu = xu + margin * delta
+
+        if not constraints:
+
+            problem = DRSAProblem(P=P,
+                                  n_var=U.shape[1],
+                                  n_obj=len(P),
+                                  xl=xl, xu=xu)
+
+        else :
+            problem = DRSAProblem(P=P,
+                                  n_var=U.shape[1],
+                                  n_obj=len(P),
+                                  n_ieq_constr=len(constraints),
+                                  xl=xl, xu=xu,
+                                  constr=constraints)
 
         algorithm = NSGA2(pop_size=pop_size)
 
-        res = minimize(problem, algorithm, termination=('n_gen', n_gen), verbose=False)
+        res = minimize(problem, algorithm, termination=('n_gen', n_gen), verbose=True)
 
-        return res.X, res.F
+        X, T = res.X, res.F
+
+        return X, T
+
+
 
     def generate_constraints(self, rules):
-        pass
+        
+        return []
 
-    def set_P(self, reduct):
-        mask = np.isin(self.P, reduct)
-        self.P = self.P[mask]
+
 

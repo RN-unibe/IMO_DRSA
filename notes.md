@@ -11,31 +11,21 @@ are the lower and upper bounds we want to find with DRSA, I think.
 
 
 
+class ExampleProblem(ElementwiseProblem):
 
+    def __init__(self):
+        super().__init__(n_var=2,
+                         n_obj=2,
+                         n_ieq_constr=2,
+                         xl=np.array([-2,-2]),
+                         xu=np.array([2,2]))
 
+    def _evaluate(self, x, out, *args, **kwargs):
+        f1 = 100 * (x[0]**2 + x[1]**2)
+        f2 = (x[0]-1)**2 + x[1]**2
 
+        g1 = 2*(x[0]-0.1) * (x[0]-0.9) / 0.18
+        g2 = - 20*(x[0]-0.4) * (x[0]-0.6) / 4.8
 
-
-
-
-
-    def certainty(self, X=None) -> float :
-        """
-        "The difference between the upper and lower approximation constitutes
-        the boundary region of the rough set, whose elements cannot be characterized
-        with certainty as belonging or not to X (by using the available information).
-        The information about objects from the boundary region is, therefore, inconsistent.
-        The cardinality of the boundary region states, moreover, the extent
-        to which it is possible to express X in terms of certainty, on the basis of the
-        available information. In fact, these objects have the same description, but are
-        assigned to different classes, such as patients having the same symptoms (the
-        same description), but different pathologies (different classes). For this reason,
-        this cardinality may be used as a measure of inconsistency of the information
-        about X." (p. 125 bzw. 141)
-
-
-        """
-
-
-        #Do a thing with the cardinality of X, I guess
-        pass
+        out["F"] = [f1, f2]
+        out["G"] = [g1, g2]

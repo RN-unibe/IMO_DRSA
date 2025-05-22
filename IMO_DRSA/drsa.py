@@ -30,7 +30,7 @@ class DRSA:
 
     def fit(self, T: np.ndarray, d: np.ndarray, criteria: list):
         """
-        :param T: NumPy array with shape (N, n), each row is an object, columns are criteria evaluated on that object
+        :param T: NumPy array with shape (N, n_var), each row is an object, columns are criteria evaluated on that object
         :param d: NumPy array of length N, integer‐encoded decision classes (1, ..., m)
         :param criteria: list of column indices in X to use as F={f1,...,fn}
         """
@@ -38,7 +38,7 @@ class DRSA:
         self.d = d
         self.criteria_F = criteria
 
-        self.N, self.n = T.shape
+        self.N, self.n_var = T.shape
         self.m = int(d.max())
 
         #self._sorted_idx = {i: np.argsort(self.T[:, i]) for i in self.criteria_F}
@@ -200,7 +200,7 @@ class DRSA:
     # ------------------------------------------------------------------
     # Decision‐rule induction
     # ------------------------------------------------------------------
-    def induce_rules(self, criteria_P: tuple, union_type='up', t=None):
+    def induce_rules(self, criteria_P: tuple, union_type='up', t=None) -> list:
         """
         Induce certain / possible decision rules for Cl^{>=t} or Cl^{≤t}.
         union_type: 'up' or 'down'
