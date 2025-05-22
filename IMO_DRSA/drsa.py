@@ -200,12 +200,12 @@ class DRSA:
     # ------------------------------------------------------------------
     # Decision‐rule induction
     # ------------------------------------------------------------------
-    def induce_rules(self, criteria_P: tuple, union_type='up', t=None) -> list:
+    def induce_rules(self, criteria_P: tuple, union_type='up', t=2) -> list:
         """
         Induce certain / possible decision rules for Cl^{>=t} or Cl^{≤t}.
         union_type: 'up' or 'down'
-        t: class index
-        Returns list of rules of form (conditions, conclusion, support, confidence)
+        t: class index (for IMO_DRSA this will always be =2)
+        Returns list of rules of form (conditions, conclusion, support, confidence, union_type)
         """
         rules = []
 
@@ -228,7 +228,7 @@ class DRSA:
                 support = mask.sum() / self.N
                 confidence = (self.d[mask] >= t).mean()
 
-                rules.append((profile, f'd >= {t}', support, confidence, 'certain'))
+                rules.append((profile, f'd >= {t}', support, confidence, 'certain', 'up'))
             
             
             for idx in possibles:
@@ -242,7 +242,7 @@ class DRSA:
                 support = mask.sum() / self.N
                 confidence = (self.d[mask] >= t).mean()
 
-                rules.append((profile, f'd >= {t}', support, confidence, 'possible'))
+                rules.append((profile, f'd >= {t}', support, confidence, 'possible', 'up'))
             
         elif union_type == 'down':
             lower = self.lower_approx_down(criteria_P, t)
@@ -262,7 +262,7 @@ class DRSA:
                 support = mask.sum() / self.N
                 confidence = (self.d[mask] <= t).mean()
 
-                rules.append((profile, f'd <= {t}', support, confidence, 'certain'))
+                rules.append((profile, f'd <= {t}', support, confidence, 'certain', 'down'))
 
             for idx in possibles:
                 profile = {i: self.T[idx, i] for i in criteria_P}
@@ -275,13 +275,12 @@ class DRSA:
                 support = mask.sum() / self.N
                 confidence = (self.d[mask] <= t).mean()
 
-                rules.append((profile, f'd <= {t}', support, confidence, 'possible'))
+                rules.append((profile, f'd <= {t}', support, confidence, 'possible', 'down'))
 
         else:
             throw_error('Invalid union_type')
 
         return rules
-
 
 
 
@@ -294,7 +293,7 @@ class DRSA:
         :return:
         """
         explain = []
-        for cond, concl, support, conf, kind in rules:
+        for cond, concl, support, conf, kind, _ in rules:
             cond_str = " AND ".join(f"f_{i + 1} >= {v}" for i, v in cond.items())
             rule_string = f"[{kind.upper()}] IF {cond_str} THEN {concl}  (support={support:.2f}, confidence={conf:.2f})"
             explain.append(rule_string)

@@ -18,8 +18,8 @@ from IMO_DRSA.drsa import DRSA
 class IMO_DRSA():
 
     def __init__(self,
-                 U:np.ndarray,
-                 F:List[Callable[[np.ndarray], float]]):
+                 U:np.ndarray=None,
+                 F:List[Callable[[np.ndarray], float]]=None):
         """
         Interactive Multi-objective Optimization using Dominance-based Rough Set Approach (IMO-DRSA).
 
@@ -28,13 +28,8 @@ class IMO_DRSA():
         :param DM: the decision maker (DM)
         :param max_iter:
         """
-        
-        assert isinstance(U, np.ndarray)
-        assert U is not None
 
-        
-        assert isinstance(F, List)
-        assert F is not None
+
 
         self.U = U
         self.F = F
@@ -47,6 +42,10 @@ class IMO_DRSA():
 
         :return: True, if the process finished successfully. False, otherwise.
         """
+        assert isinstance(self.U, np.ndarray)
+        assert self.U is not None
+
+        assert self.F is not None
 
         constraints = []
         rules = []
@@ -62,7 +61,7 @@ class IMO_DRSA():
             # Show DM 6, 7
             # make constraints 8
 
-            X, new_T = self.pareto_front(self.U, P, constraints)
+            X, new_T = self.pareto_front(self.U, P, constraints) # T is the table of all f_P(x) in X
 
 
 
@@ -90,9 +89,9 @@ class IMO_DRSA():
 
             rules = self.drsa.induce_rules(reduct, union_type='up', t=2)
 
-            rules = dm.select(rules)
+            selected_rules = dm.select(rules)
 
-            new_constraints = self.generate_constraints(rules)
+            new_constraints = self.generate_constraints(selected_rules)
 
             constraints.extend(new_constraints)
 
@@ -106,6 +105,7 @@ class IMO_DRSA():
 
     def _visualise(self, pareto_front, pareto_set) -> None:
         pass
+
 
     def get_association_rules(self, T):
         pass
@@ -160,9 +160,18 @@ class IMO_DRSA():
 
 
 
-    def generate_constraints(self, rules):
-        
-        return []
+    def generate_constraints(self, P, selected_rules):
+        constr = []
+
+        for profile, _, _, _, _, union_type in selected_rules:
+            #if kind in ('certain', 'possible'):  # typically only these
+            for i, ri in profile.items():
+                if union_type == 'up':
+                    constr.append(lambda x: ri - P[i](x))
+                else:  # union_type == 'down'
+                    constr.append(lambda x: P[i](x) - ri)
+
+        return constr
 
 
 
