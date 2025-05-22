@@ -4,13 +4,13 @@ import numpy as np
 import pandas as pd
 
 from pymoo.algorithms.moo.nsga2 import NSGA2
-
-
 from pymoo.optimize import minimize
 from pymoo.visualization.scatter import Scatter
 
+
+
 from IMO_DRSA.decision_maker import BaseDM
-from IMO_DRSA.problem import DRSAProblem
+from IMO_DRSA.problem import DRSABaseProblem
 from IMO_DRSA.drsa import DRSA
 
 
@@ -23,7 +23,7 @@ class IMO_DRSA():
         """
         Interactive Multi-objective Optimization using Dominance-based Rough Set Approach (IMO-DRSA).
 
-        :param U: the universe of objects, numpy.ndarray of shape (N, n_var)
+        :param U: the universe of objects, numpy array of shape (n_obj, n_var)
         :param F: the set of all objective functions, List of functions, i.e., callables
         :param DM: the decision maker (DM)
         :param max_iter:
@@ -87,7 +87,7 @@ class IMO_DRSA():
             P = P[reduct]
             I = [i for i in range(0, len(P))]
 
-            rules = self.drsa.induce_rules(reduct, union_type='up', t=2)
+            rules = self.drsa.induce_decision_rules(reduct, union_type='up', t=2)
 
             selected_rules = dm.select(rules)
 
@@ -107,8 +107,8 @@ class IMO_DRSA():
         pass
 
 
-    def get_association_rules(self, T):
-        pass
+
+
 
     def pareto_front(self, U, P, constraints:List[Callable[[np.ndarray], float]]=None, pop_size=100, n_gen=200):
         """
@@ -135,18 +135,9 @@ class IMO_DRSA():
         xl = xl - margin * delta
         xu = xu + margin * delta
 
-        if not constraints:
-
-            problem = DRSAProblem(P=P,
+        problem = DRSABaseProblem(P=P,
                                   n_var=U.shape[1],
                                   n_obj=len(P),
-                                  xl=xl, xu=xu)
-
-        else :
-            problem = DRSAProblem(P=P,
-                                  n_var=U.shape[1],
-                                  n_obj=len(P),
-                                  n_ieq_constr=len(constraints),
                                   xl=xl, xu=xu,
                                   constr=constraints)
 

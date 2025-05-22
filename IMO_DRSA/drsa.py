@@ -1,3 +1,5 @@
+from typing import List, Tuple
+
 import numpy as np
 import types
 
@@ -18,14 +20,14 @@ class DRSA:
     All dominance cones, approximations, and rules are built from these.
     """
 
-    def __init__(self, X: np.ndarray=None, d: np.ndarray=None, criteria: list=None):
+    def __init__(self, T: np.ndarray=None, d: np.ndarray=None, criteria: list=None):
         """
-        :param X: NumPy array with shape (N, n), each row is an object, columns are criteria evaluated on that object
+        :param T: NumPy array with shape (N, n_var), each row is an object, columns are criteria evaluated on that object
         :param d: NumPy array of length N, integer‐encoded decision classes (1, ..., m)
         :param criteria: list of column indices in X to use as F={f1,...,fn}
         """
-        if (X is not None) and (d is not None) and (criteria is not None):
-            self.fit(X, d, criteria)
+        if (T is not None) and (d is not None) and (criteria is not None):
+            self.fit(T, d, criteria)
 
 
     def fit(self, T: np.ndarray, d: np.ndarray, criteria: list):
@@ -200,7 +202,7 @@ class DRSA:
     # ------------------------------------------------------------------
     # Decision‐rule induction
     # ------------------------------------------------------------------
-    def induce_rules(self, criteria_P: tuple, union_type='up', t=2) -> list:
+    def induce_decision_rules(self, criteria_P: tuple, union_type='up', t=2) -> list:
         """
         Induce certain / possible decision rules for Cl^{>=t} or Cl^{≤t}.
         union_type: 'up' or 'down'
@@ -282,27 +284,111 @@ class DRSA:
 
         return rules
 
-
-
-    def explain_rules(self, rules, verbose:bool=False):
+    def induce_assoc_rules(self,
+                            min_support: float = 0.0,
+                            min_confidence: float = 0.0,
+                            directions: Tuple[str,str]=('up','down')) -> List[Tuple[int, float, int, float, float]]:
         """
-        Just write them into If-then statements.
+        Generate association rules of the form:
+            IF f_i(x) [>= or <=] r_i THEN f_j(x) [<= or >=] r_j
+        for all i != j.
 
-        :param rules:
-        :param verbose:
-        :return:
+        min_support, min_confidence: thresholds in [0,1]
+        directions: ('up'|'down', 'up'|'down'), where
+            directions[0] is the premise direction (>= for 'up', <= for 'down'),
+            directions[1] is the conclusion direction.
+
+        Returns a list of tuples
+            (i, r_i, j, r_j, support, confidence)
+        meaning
+            IF f_i >= r_i THEN f_j <= r_j    (when directions=('up','down'))
+        or the analogues for other combinations.
+        """
+        N, M = self.T.shape
+        rules = []
+        # choose comparison operators
+        op_prem = (lambda a,b: a>=b) if directions[0]=='up' else (lambda a,b: a<=b)
+        op_conc = (lambda a,b: a<=b) if directions[1]=='down' else (lambda a,b: a>=b)
+        
+        for i in range(M):
+            vals_i = np.unique(self.T[:, i])
+            for r_i in vals_i:
+                mask_p = op_prem(self.T[:, i], r_i)     # premise mask
+                sup_count = mask_p.sum()
+                sup = sup_count / N
+
+                if sup < min_support or sup_count==0:
+                    continue
+                # for each other criterion j
+                for j in range(M):
+                    if j == i:
+                        continue
+                    # try all candidate thresholds on criterion j
+                    vals_j = np.unique(self.T[:, j])
+                    for r_j in vals_j:
+                        # check no counter‐examples
+                        mask_c = op_conc(self.T[:, j], r_j)
+                        if np.any(mask_p & (~mask_c)):
+                            # some x satisfies premise but violates conclusion → skip
+                            continue
+                        # rule holds; compute confidence
+                        conf = (mask_p & mask_c).sum() / sup_count
+                        if conf < min_confidence:
+                            continue
+                        # keep the **minimal** r_j for this (i,r_i,j) if desired
+                        # or just append all valid (i,r_i,j,r_j) pairs:
+                        rules.append((i, r_i, j, r_j, sup, conf))
+                        # if you only want the “tightest” conclusion, break here:
+                        break
+
+        return rules
+
+    def explain_rules(self, rules, verbose: bool = False):
+        """
+        Turn both decision‐rules and association rules into human‐readable IF-THEN strings.
+
+        Supports two formats in `rules`:
+          1. Decision rules   (cond: dict, concl: str, support, conf, kind, union_type)
+          2. Association rules (i, r_i, j, r_j, support, conf)
+
+        :param rules: list of rule‐tuples
+        :param verbose:  if True, also print each rule as it’s generated
+        :return:        list of strings
         """
         explain = []
-        for cond, concl, support, conf, kind, _ in rules:
-            cond_str = " AND ".join(f"f_{i + 1} >= {v}" for i, v in cond.items())
-            rule_string = f"[{kind.upper()}] IF {cond_str} THEN {concl}  (support={support:.2f}, confidence={conf:.2f})"
-            explain.append(rule_string)
 
+        for rule in rules:
+            # --- decision rule: cond is a dict
+            if isinstance(rule[0], dict):
+                cond, concl, support, conf, kind, union = rule
+                # build “f_1 >= 1.0 AND f_2 >= 2.0” etc,
+                # flipping to <= if union=='down'
+                sep = " AND "
+                cond_str = sep.join(
+                    f"f_{i + 1} {'>=' if union == 'up' else '<='} {v}"
+                    for i, v in cond.items()
+                )
+                rule_string = (
+                    f"[{kind.upper()}] IF {cond_str} THEN {concl}  "
+                    f"(support={support:.2f}, confidence={conf:.2f})"
+                )
+
+            # --- association rule: plain tuple of ints/floats
+            else:
+                i, r_i, j, r_j, support, conf = rule
+                # we assume the “premise” is always f_i >= r_i
+                # and the “conclusion” always f_j <= r_j
+                rule_string = (
+                    f"[ASSOC] IF f_{i + 1} >= {r_i} "
+                    f"THEN f_{j + 1} <= {r_j}  "
+                    f"(support={support:.2f}, confidence={conf:.2f})"
+                )
+
+            explain.append(rule_string)
             if verbose:
                 print(rule_string)
 
         return explain
-
 
     #def run(self):
 

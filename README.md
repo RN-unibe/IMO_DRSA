@@ -1,5 +1,5 @@
- # Interactive Optimisation Process using DRSA (IMO-DRSA)
-The method consists of an iterative cycle of two main stages:
+# Interactive Optimisation Process using DRSA (IMO-DRSA)
+A Python implementation of the IMO-DRSA framework, consisting of an iterative cycle of two main stages:
 
 ## A. Optimisation Stage
 Generate a sample from the current approximation of the Pareto optimal set.

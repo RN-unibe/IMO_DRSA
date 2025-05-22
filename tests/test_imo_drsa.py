@@ -33,8 +33,9 @@ class TestIMO_DRSA(TestCase):
         self.assertTrue(np.all(F_out >= 0.0), "Some objective values < 0")
         self.assertTrue(np.all(F_out <= 1.0), "Some objective values > 1")
 
-    def test_get_association_rules(self):
-        self.fail()
+
+
+
 
 
     def test_generate_constraints(self):

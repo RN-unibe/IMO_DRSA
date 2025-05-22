@@ -54,9 +54,30 @@ class TestDRSA(TestCase):
         self.fail()
 
 
+    def test_generate_association_rules(self):
+        # Two criteria f1, f2; five objects; and a 3-class decision d in {1,2,3}
+        T = np.array([
+            [5, 7],  # obj0
+            [3, 4],  # obj1
+            [6, 2],  # obj2
+            [4, 6],  # obj3
+            [2, 5],  # obj4
+        ])
+
+        d = np.array([1, 1, 3, 2, 2])  # decision classes for obj0, ..., obj4
+
+
+        drsa = DRSA(T, d, criteria=[0, 1])
+
+
+        rules = drsa.induce_assoc_rules(T)
+
+        drsa.explain_rules(rules)
+
+
     def test_drsa(self):
         # Two criteria f1, f2; five objects; and a 3-class decision d in {1,2,3}
-        X = np.array([
+        T = np.array([
             [5, 7],  # obj0
             [3, 4],  # obj1
             [6, 2],  # obj2
@@ -65,7 +86,7 @@ class TestDRSA(TestCase):
         ])
         d = np.array([1, 1, 3, 2, 2])  # decision classes for obj0, ..., obj4
 
-        drsa = DRSA(X, d, criteria=[0, 1])
+        drsa = DRSA(T, d, criteria=[0, 1])
 
         #pos_cone = drsa.positive_cone((0, 1))
         #print(pos_cone)
@@ -82,6 +103,6 @@ class TestDRSA(TestCase):
         reducts = drsa.find_reducts()
         print("Minimal reducts:", reducts)
 
-        rules = drsa.induce_rules((0, 1), union_type='up', t=2)
+        rules = drsa.induce_decision_rules((0, 1), union_type='up', t=2)
 
         drsa.explain_rules(rules, verbose=True)
