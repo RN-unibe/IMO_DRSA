@@ -2,7 +2,7 @@ from unittest import TestCase
 
 import numpy as np
 
-from IMO_DRSA.drsa import DRSA
+from src.imo_drsa.drsa import DRSA
 
 
 class TestDRSA(TestCase):

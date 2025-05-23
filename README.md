@@ -15,7 +15,7 @@ Generate a sample from the current approximation of the Pareto optimal set.
 
 
 ## Step-by-step Overview:
-1. Optimize: get Pareto front
+1. Optimise: get Pareto front
 
 2. Ask DM to sort into "good" / "other"
 

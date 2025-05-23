@@ -1,12 +1,12 @@
-from typing import Callable, List, Optional, Tuple
+from typing import Callable, List
 
 import numpy as np
 from pymoo.algorithms.moo.nsga2 import NSGA2
 from pymoo.optimize import minimize
 
-from IMO_DRSA.decision_maker import BaseDM
-from IMO_DRSA.drsa import DRSA
-from IMO_DRSA.problem import DRSABaseProblem
+from src.imo_drsa.decision_maker import BaseDM
+from src.imo_drsa.drsa import DRSA
+from src.imo_drsa.problem import DRSABaseProblem
 
 
 
@@ -18,7 +18,10 @@ class IMO_DRSA():
     :param objectives: List of objective functions mapping a solution vector to a float.
     """
 
-    def __init__(self, universe:np.ndarray=None, objectives:List[Callable]=None):
+    def __init__(self):
+        self.drsa = DRSA()
+
+    def fit(self, universe:np.ndarray=None, objectives:List[Callable]=None):
         """
         Initialize the IMO-DRSA solver.
 
@@ -27,7 +30,6 @@ class IMO_DRSA():
         """
         self.universe = universe
         self.objectives = objectives
-        self.drsa = DRSA()
 
 
     def solve(self, decision_maker:BaseDM, visualise:bool=False, max_iter:int=5) -> bool:

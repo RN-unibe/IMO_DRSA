@@ -2,7 +2,7 @@ from unittest import TestCase
 import numpy as np
 from pymoo.problems import get_problem
 
-from IMO_DRSA.imo_drsa import IMO_DRSA
+from src.imo_drsa.imo_drsa import IMO_DRSA
 
 class TestIMO_DRSA(TestCase):
     np.random.seed(42)
@@ -48,7 +48,7 @@ class TestIMO_DRSA(TestCase):
         self.assertEqual(dr[0](x), 0)
         self.assertEqual(dr[1](x), 0)
 
-        # And the two “possible” constraints should not be zero for x
+        # And the two "possible" constraints should not be zero for x
         self.assertNotEqual(dr[2](x), 0)
         self.assertNotEqual(dr[3](x), 0)
 
