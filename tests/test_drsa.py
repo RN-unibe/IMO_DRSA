@@ -1,108 +1,136 @@
 from unittest import TestCase
+
 import numpy as np
 
 from IMO_DRSA.drsa import DRSA
 
 
 class TestDRSA(TestCase):
+    np.random.seed(42)
+
+
+    def setUp(self):
+        self.T = np.array([[5, 7],
+                           [3, 4],
+                           [6, 2],
+                           [4, 6],
+                           [2, 5]])
+        self.d = np.array([1, 1, 3, 2, 2])
+        # Initialize DRSA with full criteria
+        self.drsa = DRSA(self.T, self.d, criteria=(0, 1))
 
     def test_positive_cone(self):
-        self.fail()
+        pos = self.drsa.positive_cone((0, 1))
 
+        expected = np.array([
+            [ True,  True, False,  True,  True],
+            [False,  True, False, False, False],
+            [False, False,  True, False, False],
+            [False,  True, False,  True,  True],
+            [False, False, False, False,  True]])
 
+        self.assertTrue(np.array_equal(pos, expected), f"Positive cone incorrect: {pos}")
 
     def test_negative_cone(self):
-        self.fail()
+        neg = self.drsa.negative_cone((0, 1))
+        # Negative cone should be the transpose of the positive cone
+        pos = self.drsa.positive_cone((0, 1))
 
+        expected = pos.T
 
+        self.assertTrue(np.array_equal(neg, expected), f"Negative cone incorrect: {neg}")
 
-    def test_lower_approx_up(self):
-        self.fail()
-
-
-
-    def test_upper_approx_up(self):
-        self.fail()
-
-
-
-    def test_lower_approx_down(self):
-        self.fail()
-
-
-
-    def test_upper_approx_down(self):
-        self.fail()
-
-
-
-    def test_quality(self):
-        self.fail()
-
-
-
-    def test_find_reducts(self):
-        self.fail()
-
-
-
-    def test_induce_rules(self):
-        self.fail()
-
-
-    def test_generate_constraints(self):
-        self.fail()
-
-
-    def test_generate_association_rules(self):
-        # Two criteria f1, f2; five objects; and a 3-class decision d in {1,2,3}
-        T = np.array([
-            [5, 7],  # obj0
-            [3, 4],  # obj1
-            [6, 2],  # obj2
-            [4, 6],  # obj3
-            [2, 5],  # obj4
-        ])
-
-        d = np.array([1, 1, 3, 2, 2])  # decision classes for obj0, ..., obj4
-
-
-        drsa = DRSA(T, d, criteria=[0, 1])
-
-
-        rules = drsa.induce_assoc_rules(T)
-
-        drsa.explain_rules(rules)
-
-
-    def test_drsa(self):
-        # Two criteria f1, f2; five objects; and a 3-class decision d in {1,2,3}
-        T = np.array([
-            [5, 7],  # obj0
-            [3, 4],  # obj1
-            [6, 2],  # obj2
-            [4, 6],  # obj3
-            [2, 5],  # obj4
-        ])
-        d = np.array([1, 1, 3, 2, 2])  # decision classes for obj0, ..., obj4
-
-        drsa = DRSA(T, d, criteria=[0, 1])
-
-        #pos_cone = drsa.positive_cone((0, 1))
-        #print(pos_cone)
-
-        low_up = drsa.lower_approx_up((0, 1), t=2)  # boolean mask length 5
-        up_up = drsa.upper_approx_up((0, 1), t=2)
+    def test_approximations(self):
+        low_up = self.drsa.lower_approx_up((0, 1), threshold=2)
+        up_up = self.drsa.upper_approx_up((0, 1), threshold=2)
 
         self.assertListEqual(low_up.tolist(), [False, False, True, False, False])
-        self.assertListEqual(up_up.tolist(), [True, False, True, True, True])
+        self.assertListEqual(up_up.tolist(),  [True, False, True, True, True])
+
+    def test_quality(self):
+        gamma = self.drsa.quality((0, 1))
+        # For the given data, consistency yields 2 out of 5 objects => 0.4
+        self.assertAlmostEqual(gamma, 0.4, places=6)
+
+    def test_find_reducts(self):
+        reducts = self.drsa.find_reducts()
+        # Only the full set of criteria is a minimal reduct here
+        self.assertEqual(reducts, [(0, 1)])
+
+    def test_generate_association_rules(self):
+        # Using min_support=1 to only accept rules covering all objects in premise
+        rules = self.drsa.find_association_rules(self.T, (0, 1), min_support=1)
+        self.assertIsInstance(rules, dict)
+
+        # With two criteria, only one pair (0,1) should appear
+        self.assertEqual(set(rules.keys()), {(0, 1)})
+
+        rule = rules[(0, 1)]
+        self.assertIsInstance(rule, dict)
+
+        for key in ('if', 'then', 'support', 'confidence'):
+            self.assertIn(key, rule)
+
+        self.assertGreaterEqual(rule['support'], 0)
+        self.assertLessEqual(rule['support'], 1)
+        self.assertGreaterEqual(rule['confidence'], 0)
+        self.assertLessEqual(rule['confidence'], 1)
+
+    # The following tests validate three-objective rules
+    def test_generate_association_rules_three_objectives(self):
+        T = np.array([[5, 7, 1],
+                      [3, 4, 2],
+                      [6, 2, 6],
+                      [4, 6, 5],
+                      [2, 5, 3]])
+
+        d = np.array([1, 1, 3, 2, 2])
+
+        drsa = DRSA(T, d, criteria=(0, 1, 2))
+        rules = drsa.find_association_rules(T, (0, 1, 2), min_support=1)
+
+        expected_pairs = {(0, 1), (0, 2), (1, 2)}
+
+        self.assertIsInstance(rules, dict)
+        self.assertEqual(set(rules.keys()), expected_pairs)
+
+        for pair, rule in rules.items():
+            self.assertIsInstance(rule, dict, f"Rule for pair {pair} is None or not a dict")
+
+            for key in ('if', 'then', 'support', 'confidence'):
+                self.assertIn(key, rule, f"Missing '{key}' in rule for {pair}")
+
+            self.assertGreaterEqual(rule['support'], 0)
+            self.assertLessEqual(rule['support'], 1)
+            self.assertGreaterEqual(rule['confidence'], 0)
+            self.assertLessEqual(rule['confidence'], 1)
+
+    def test_general(self):
+        # Validate pipeline end-to-end
+        T = np.array([[5, 7],
+                      [3, 4],
+                      [6, 2],
+                      [4, 6],
+                      [2, 5]])
+
+        d = np.array([1, 1, 3, 2, 2])
+
+        drsa = DRSA()
+        drsa.fit(T, d, criteria=(0, 1))
+
+        low_up = drsa.lower_approx_up((0, 1), threshold=2)
+        up_up = drsa.upper_approx_up((0, 1), threshold=2)
+
+        self.assertListEqual(low_up.tolist(), [False, False, True, False, False])
+        self.assertListEqual(up_up.tolist(),  [True, False, True, True, True])
 
         gamma = drsa.quality((0, 1))
-        print(f"Quality of full set P={{f1,f2}}: {gamma:.2f}")
+        self.assertAlmostEqual(gamma, 0.4, places=6)
 
         reducts = drsa.find_reducts()
-        print("Minimal reducts:", reducts)
+        self.assertEqual(reducts, [(0, 1)])
 
-        rules = drsa.induce_decision_rules((0, 1), union_type='up', t=2)
+        rules = drsa.induce_decision_rules(criteria=(0, 1), direction='up', threshold=2)
 
-        drsa.explain_rules(rules, verbose=True)
+        # Must produce at least one rule
+        self.assertTrue(len(rules) > 0)

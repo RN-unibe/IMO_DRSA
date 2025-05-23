@@ -21,11 +21,19 @@ class BaseDM:
 
 
 
-class StandardDM(BaseDM):
+class InteractiveDM(BaseDM):
     def __init__(self, d):
         BaseDM.__init__(self, d)
 
-    def choose_decision_rules(self, rules):
+    def select(self, rules):
+        return rules
+
+
+class AutomatedDM(BaseDM):
+    def __init__(self, d):
+        BaseDM.__init__(self, d)
+
+    def select(self, rules):
         chosen = []
 
         for rule in rules:

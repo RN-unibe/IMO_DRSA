@@ -1,409 +1,425 @@
-from typing import List, Tuple
+import itertools
+import operator
+from itertools import combinations
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
-import types
-
-from itertools import combinations
-from functools import lru_cache
-
-from numpy.f2py.auxfuncs import throw_error
+import pandas as pd
+import matplotlib.pyplot as plt
+from mlxtend.frequent_patterns import apriori, association_rules
+from mlxtend.preprocessing import TransactionEncoder
 
 
 class DRSA:
     """
-    Dominance‐Based Rough Set Approach (DRSA) for multicriteria sorting.
+    Dominance-Based Rough Set Approach (DRSA) for multicriteria sorting and rule induction.
 
-    F = {f1,...,fn}: list of criterion functions (or column indices)
-    U: set of all objects, stored as a NumPy 2D array of shape (N, n)
-    d: decision attribute, stored as a 1D array of length N with values in {1...m}
 
-    All dominance cones, approximations, and rules are built from these.
+    :param pareto_set: Data matrix of shape (N, n_features).
+    :param decision_attribute: Decision array of length N, encoded as integers 1 to m.
+    :param criteria_full: Tuple of all criterion indices.
+    :param criteria_reduct: Tuple of current reduct criteria indices.
+    :param N: Number of objects.
+    :param n_features: Number of criteria/features.
+    :param m: Number of decision classes.
     """
 
-    def __init__(self, T: np.ndarray=None, d: np.ndarray=None, criteria: list=None):
+    def __init__(self, pareto_set:np.ndarray=None, decision_attribute:np.ndarray=None, criteria:Tuple[int, ...]=None):
         """
-        :param T: NumPy array with shape (N, n_var), each row is an object, columns are criteria evaluated on that object
-        :param d: NumPy array of length N, integer‐encoded decision classes (1, ..., m)
-        :param criteria: list of column indices in X to use as F={f1,...,fn}
+        :param pareto_set: NumPy array with shape (N, n_var), each row is an object, columns are criteria evaluated on that object
+        :param decision_attribute: NumPy array of length N, integer‐encoded decision classes (1, ..., m)
+        :param criteria: list of column indices in pareto_set
         """
-        if (T is not None) and (d is not None) and (criteria is not None):
-            self.fit(T, d, criteria)
+        if pareto_set is not None and decision_attribute is not None and criteria is not None:
+            self.fit(pareto_set, decision_attribute, criteria)
 
 
-    def fit(self, T: np.ndarray, d: np.ndarray, criteria: list):
+    def fit(self, pareto_set:np.ndarray, decision_attribute:np.ndarray, criteria:Tuple[int, ...]) -> None:
         """
-        :param T: NumPy array with shape (N, n_var), each row is an object, columns are criteria evaluated on that object
-        :param d: NumPy array of length N, integer‐encoded decision classes (1, ..., m)
-        :param criteria: list of column indices in X to use as F={f1,...,fn}
+        :param pareto_set: NumPy array with shape (N, n_var), each row is an object, columns are criteria evaluated on that object
+        :param decision_attribute: NumPy array of length N, integer‐encoded decision classes (1, ..., m)
+        :param criteria: list of column indices in pareto_set
         """
-        self.T = T
-        self.d = d
-        self.criteria_F = criteria
+        assert pareto_set is not None, "Pareto set must not be empty."
+        assert criteria is not None, "Criteria must not be provided."
 
-        self.N, self.n_var = T.shape
-        self.m = int(d.max())
+        self.pareto_set = pareto_set
+        self.decision_attribute = decision_attribute
 
-        #self._sorted_idx = {i: np.argsort(self.T[:, i]) for i in self.criteria_F}
+        self.criteria_full = criteria
+
+        self.N, self.n_features = pareto_set.shape
+        self.m = int(decision_attribute.max())
 
 
-
-
-    # ------------------------------------------------------------------
+    # ---------------------------------------------------------------------------------------------------------- #
     # Dominance‐cone computations
-    # ------------------------------------------------------------------
-    def positive_cone(self, criteria_P: tuple) -> np.ndarray:
+    # ---------------------------------------------------------------------------------------------------------- #
+
+    def positive_cone(self, criteria:Tuple[int, ...]) -> np.ndarray:
         """
-        For each object x, return a boolean mask of U indicating positive_cone(x).
+        Boolean mask [y, x] True if object y P-dominates x.
+        
+        :param criteria: list of column indices in T to use as P subset of F = {f1,...,fn}
 
-        :param criteria_P: tuple of criterion indices
-        :return array of shape (N, N), but stored as a boolean matrix.
-        """
-        # initialize all‐True mask
-        mask = np.ones((self.N, self.N), dtype=bool)
-
-        for i in criteria_P:
-            # for criterion i, y dominates x if X[y,i] >= X[x,i]
-            # broadcast comparison
-            mask &= (self.T[:, i][:, None] >= self.T[:, i][None, :])
-
-        return mask  # mask[y, x] == True iff y P-dominates x
-
-
-
-    def negative_cone(self, criteria_P: tuple) -> np.ndarray:
-        """
-        For each object x, return a boolean mask of U indicating negative_cone(x).
-
-        :param criteria_P: tuple of criterion indices
-        :return array of shape (N, N), but stored as a boolean matrix.
+        :return: the P-dominating set of x
         """
         mask = np.ones((self.N, self.N), dtype=bool)
 
-        for i in criteria_P:
-            mask &= (self.T[:, i][:, None] <= self.T[:, i][None, :])
+        for idx in criteria:
+            vals = self.pareto_set[:, idx]
+            mask &= vals[:, None] >= vals[None, :]
 
-        return mask  # mask[y, x] == True iff x P-dominates y
+        return mask
 
 
+    def negative_cone(self, criteria:Tuple[int, ...]) -> np.ndarray:
+        """
+        Boolean mask [y, x] True if object x P-dominates y.
+        
+        :param criteria: list of column indices in T to use as P subset of F = {f1,...,fn}
 
-    # ------------------------------------------------------------------
+        :return: the P-dominated set of x
+        """
+        mask = np.ones((self.N, self.N), dtype=bool)
+
+        for idx in criteria:
+            vals = self.pareto_set[:, idx]
+            mask &= vals[:, None] <= vals[None, :]
+
+        return mask
+
+
+    # ---------------------------------------------------------------------------------------------------------- #
     # Rough approximations
-    # ------------------------------------------------------------------
-    def lower_approx_up(self, criteria_P: tuple, t: int) -> np.ndarray:
+    # ---------------------------------------------------------------------------------------------------------- #
+
+    def lower_approx_up(self, criteria:Tuple[int, ...], threshold:int) -> np.ndarray:
         """
-        Compute the lower approximation of the 'up' region at threshold t under criteria P.
+        Lower approximation of upward union for decision >= threshold.
 
-        :param criteria_P: Tuple of parameters defining the positive cone relation.
-        :param t: Integer threshold for the upward approximation.
-        :return: 1D boolean numpy array of length N where each entry x is True if,
-                 for every y in the positive cone of x, d[y] >= t holds.
+        :param criteria: list of column indices in T to use as P subset of F = {f1,...,fn} 
+        :param threshold:int of class
+
+        :return: np.ndarray containing the lower approximation of upward union
         """
-        mask = self.positive_cone(criteria_P)  # shape (N,N), mask[y,x]=True iff in positive_cone(x)
+        cone = self.positive_cone(criteria)
 
-        ok = np.all(~mask | (self.d[:, None] >= t), axis=0)
-
-        return ok
+        return np.all(~cone | (self.decision_attribute[:, None] >= threshold), axis=0)
 
 
-    def upper_approx_up(self, criteria_P: tuple, t: int) -> np.ndarray:
+    def upper_approx_up(self, criteria:Tuple[int, ...], threshold:int) -> np.ndarray:
         """
-        Compute the upper approximation of the 'up' region at threshold t under criteria P.
+        Upper approximation of upward union for decision >= threshold.
 
-        :param criteria_P: Tuple of parameters defining the negative cone relation.
-        :param t: Integer threshold for the upward approximation.
-        :return: 1D boolean numpy array of length N where each entry x is True if
-                 there exists at least one y in the negative cone of x such that d[y] >= t.
+        :param criteria: list of column indices in T to use as P subset of F = {f1,...,fn} 
+        :param threshold:int of class
+
+        :return: np.ndarray containing the upper approximation of upward union
+         """
+        cone = self.negative_cone(criteria)
+
+        return np.any(cone & (self.decision_attribute[:, None] >= threshold), axis=0)
+
+
+    def lower_approx_down(self, criteria:Tuple[int, ...], threshold:int) -> np.ndarray:
         """
-        mask = self.negative_cone(criteria_P)  # shape (N,N), mask[y,x]=True iff in negative_coneP(x)
-        ok = np.any(mask & (self.d[:, None] >= t), axis=0)
+        Lower approximation of downward union for decision <= threshold.
 
-        return ok
+        :param criteria: list of column indices in T to use as P subset of F = {f1,...,fn} 
+        :param threshold:int of class
 
-
-    def lower_approx_down(self, criteria_P: tuple, t: int) -> np.ndarray:
+        :return: np.ndarray containing the lower approximation of downward union
         """
-        Compute the lower approximation of the 'down' region at threshold t under criteria P.
+        cone = self.negative_cone(criteria)
 
-        :param criteria_P: Tuple of parameters defining the negative cone relation.
-        :param t: Integer threshold for the downward approximation.
-        :return: 1D boolean numpy array of length N where each entry x is True if,
-                 for every y in the negative cone of x, d[y] <= t holds.
+        return np.all(~cone | (self.decision_attribute[:, None] <= threshold), axis=0)
+
+
+    def upper_approx_down(self, criteria:Tuple[int, ...], threshold:int) -> np.ndarray:
         """
-        mask = self.negative_cone(criteria_P)
-        ok = np.all(~mask | (self.d[:, None] <= t), axis=0)
+        Upper approximation of downward union for decision <= threshold.
 
-        return ok
+        :param criteria: list of column indices in T to use as P subset of F = {f1,...,fn} 
+        :param threshold:int of class
 
-
-    def upper_approx_down(self, criteria_P: tuple, t: int) -> np.ndarray:
+        :return: np.ndarray containing the upper approximation of downward union
         """
-        Compute the upper approximation of the 'down' region at threshold t under criteria P.
+        cone = self.positive_cone(criteria)
 
-        :param criteria_P: Tuple of parameters defining the positive cone relation.
-        :param t: Integer threshold for the downward approximation.
-        :return: 1D boolean numpy array of length N where each entry x is True if
-                 there exists at least one y in the positive cone of x such that d[y] <= t.
+        return np.any(cone & (self.decision_attribute[:, None] <= threshold), axis=0)
+
+    # ---------------------------------------------------------------------------------------------------------- #
+    # Quality of approximation gamma_P(Cl)
+    # ---------------------------------------------------------------------------------------------------------- #
+
+    def quality(self, criteria:Tuple[int, ...]) -> float:
         """
-        mask = self.positive_cone(criteria_P)
-        ok = np.any(mask & (self.d[:, None] <= t), axis=0)
-
-        return ok
-
-
-    # ------------------------------------------------------------------
-    # Quality of approximation gamma_P(Cl) (Definition §5.2)
-    # ------------------------------------------------------------------
-    def quality(self, criteria_P: tuple) -> float:
+        Compute the quality of approximation gamma for given criteria.
+        
+        :param criteria: list of column indices in T to use as P subset of F = {f1,...,fn} 
         """
-        gamma_P(Cl) = proportion of P‐consistent objects.
-
-        :param criteria_P: Tuple of parameters defining the positive cone relation.
-        :return proportion of P‐consistent objects
-        """
-        consistent = np.ones(self.N, dtype=bool)
-        # a sample union: Cl^{>=2},...,Cl^{>=m} boundaries
+        consistent_mask = np.ones(self.N, dtype=bool)
 
         for t in range(2, self.m + 1):
-            lower = self.lower_approx_up(criteria_P, t)
-            upper = self.upper_approx_up(criteria_P, t)
+            lower = self.lower_approx_up(criteria, t)
+            upper = self.upper_approx_up(criteria, t)
+
             boundary = upper & ~lower
-            consistent &= ~boundary
+            consistent_mask &= ~boundary
 
-        return consistent.sum() / self.N
+        return float(consistent_mask.sum()) / self.N
 
-
-
-    # ------------------------------------------------------------------
+    # ---------------------------------------------------------------------------------------------------------- #
     # Finding reducts (brute‐force; not good for large n, use heuristic)
-    # ------------------------------------------------------------------
-    def find_reducts(self):
+    # ---------------------------------------------------------------------------------------------------------- #
+    def find_reducts(self) -> List[Tuple[int, ...]]:
         """
-        Return all minimal criteria_P subset of criteria_F such that gamma_P = gamma_F.
-        TODO: combinatorial. Use only for small n or with pruning.
+        Return minimal subsets of criteria preserving full quality.
+
+        :return: list of reducts.
         """
-        full_gamma = self.quality(tuple(self.criteria_F))
+        full_quality = self.quality(self.criteria_full)
+
         reducts = []
 
-        for r in range(1, len(self.criteria_F) + 1):
+        for r in range(1, len(self.criteria_full) + 1):
 
-            for criteria_P in combinations(self.criteria_F, r):
-                if self.quality(criteria_P) == full_gamma:
-                    # minimality: no subset of criteria_P already in reducts
-                    if not any(set(R).issubset(criteria_P) for R in reducts):
-                        reducts.append(criteria_P)
+            for subset in combinations(self.criteria_full, r):
+
+                if self.quality(subset) == full_quality:
+
+                    if not any(set(red).issubset(subset) for red in reducts):
+                        reducts.append(subset)
 
             if reducts:
                 break
 
+
         return reducts
 
 
+    # ---------------------------------------------------------------------------------------------------------- #
+    # Decision-rule induction
+    # ---------------------------------------------------------------------------------------------------------- #
 
-    # ------------------------------------------------------------------
-    # Decision‐rule induction
-    # ------------------------------------------------------------------
-    def induce_decision_rules(self, criteria_P: tuple, union_type='up', t=2) -> list:
+    def make_rule_description(self, profile:Dict,
+                                    conclusion:str,
+                                    support:float,
+                                    confidence:float,
+                                    kind:str,
+                                    direction:str) -> str:
         """
-        Induce certain / possible decision rules for Cl^{>=t} or Cl^{≤t}.
-        union_type: 'up' or 'down'
-        t: class index (for IMO_DRSA this will always be =2)
-        Returns list of rules of form (conditions, conclusion, support, confidence, union_type)
+        Build human-readable rule description.
+
+        :param profile: dict with column indices of the compared objectives and variables
+        :param conclusion: conclusion of the decision
+        :param support: support of the decision
+        :param confidence: confidence of the decision
+        :param kind: type of rule
+        :param direction: direction of the rule
+
+        :return: rule description
         """
-        rules = []
+        conds = []
 
-        # Collect candidate profiles from either lower or upper approximation
-        if union_type == 'up':
-            lower = self.lower_approx_up(criteria_P, t)
-            upper = self.upper_approx_up(criteria_P, t)
-            bases = np.where(lower)[0]
-            possibles = np.where(upper & ~lower)[0]
+        for idx, val in profile.items():
+            op = ">=" if direction == 'up' else "<="
+            conds.append(f"f_{idx+1} {op} {val}")
 
-            # Build rules “if fi(x) >= ri for i in P then x in Cl^{>=t}” from bases
-            for idx in bases:
-                profile = {i: self.T[idx, i] for i in criteria_P}
+        premise = ' AND '.join(conds)
 
-                # compute support & confidence
-                mask = np.ones(self.N, dtype=bool) # Cn set
-                for i, fx in profile.items():
-                    mask &= (self.T[:, i] >= fx)
+        return (f"[{kind.upper()}] IF {premise} THEN {conclusion} (support={support:.2f}, confidence={confidence:.2f})")
 
-                support = mask.sum() / self.N
-                confidence = (self.d[mask] >= t).mean()
 
-                rules.append((profile, f'd >= {t}', support, confidence, 'certain', 'up'))
-            
-            
-            for idx in possibles:
-                profile = {i: self.T[idx, i] for i in criteria_P}
+    def induce_decision_rules(self, criteria:Tuple[int, ...]=None,
+                                    direction:str='up',
+                                    threshold:int=2) -> List:
+        """
+        Induce certain and possible decision rules for Cl>=threshold or Cl<=threshold.
+        direction: 'up' or 'down'.
 
-                mask = np.ones(self.N, dtype=bool)
+        :param criteria: list of column indices in T to use as P subset of F = {f1,...,fn}
+        :param direction: str direction of union, either 'up' or 'down'.
+        :param threshold:int of class
 
-                for i, fx in profile.items():
-                    mask &= (self.T[:, i] >= fx)
+        :return: list of induced decision rules of form (profile, concl, support, confidence, kind, direction, desc)
+        """
+        crit = criteria or self.criteria_full
 
-                support = mask.sum() / self.N
-                confidence = (self.d[mask] >= t).mean()
+        if direction == 'up':
+            lower = self.lower_approx_up(crit, threshold)
+            upper = self.upper_approx_up(crit, threshold)
+            comp = operator.ge
+            conf_fn = lambda mask: (self.decision_attribute[mask] >= threshold).mean()
+            concl = f"d >= {threshold}"
 
-                rules.append((profile, f'd >= {t}', support, confidence, 'possible', 'up'))
-            
-        elif union_type == 'down':
-            lower = self.lower_approx_down(criteria_P, t)
-            upper = self.upper_approx_down(criteria_P, t)
-            bases = np.where(lower)[0]
-            possibles = np.where(upper & ~lower)[0]
-
-            # Build rules “if fi(x) <= ri for i in P then x in Cl^{<=t}” from bases
-            for idx in bases:
-                profile = {i: self.T[idx, i] for i in criteria_P}
-
-                # compute support & confidence
-                mask = np.ones(self.N, dtype=bool)  # Cn set
-                for i, fx in profile.items():
-                    mask &= (self.T[:, i] <= fx)
-
-                support = mask.sum() / self.N
-                confidence = (self.d[mask] <= t).mean()
-
-                rules.append((profile, f'd <= {t}', support, confidence, 'certain', 'down'))
-
-            for idx in possibles:
-                profile = {i: self.T[idx, i] for i in criteria_P}
-
-                mask = np.ones(self.N, dtype=bool)
-
-                for i, fx in profile.items():
-                    mask &= (self.T[:, i] <= fx)
-
-                support = mask.sum() / self.N
-                confidence = (self.d[mask] <= t).mean()
-
-                rules.append((profile, f'd <= {t}', support, confidence, 'possible', 'down'))
+        elif direction == 'down':
+            lower = self.lower_approx_down(crit, threshold)
+            upper = self.upper_approx_down(crit, threshold)
+            comp = operator.le
+            conf_fn = lambda mask: (self.decision_attribute[mask] <= threshold).mean()
+            concl = f"d <= {threshold}"
 
         else:
-            throw_error('Invalid union_type')
+            raise ValueError("direction must be either 'up' or 'down'")
 
-        return rules
-
-    def induce_assoc_rules(self,
-                            min_support: float = 0.0,
-                            min_confidence: float = 0.0,
-                            directions: Tuple[str,str]=('up','down')) -> List[Tuple[int, float, int, float, float]]:
-        """
-        Generate association rules of the form:
-            IF f_i(x) [>= or <=] r_i THEN f_j(x) [<= or >=] r_j
-        for all i != j.
-
-        min_support, min_confidence: thresholds in [0,1]
-        directions: ('up'|'down', 'up'|'down'), where
-            directions[0] is the premise direction (>= for 'up', <= for 'down'),
-            directions[1] is the conclusion direction.
-
-        Returns a list of tuples
-            (i, r_i, j, r_j, support, confidence)
-        meaning
-            IF f_i >= r_i THEN f_j <= r_j    (when directions=('up','down'))
-        or the analogues for other combinations.
-        """
-        N, M = self.T.shape
         rules = []
-        # choose comparison operators
-        op_prem = (lambda a,b: a>=b) if directions[0]=='up' else (lambda a,b: a<=b)
-        op_conc = (lambda a,b: a<=b) if directions[1]=='down' else (lambda a,b: a>=b)
-        
-        for i in range(M):
-            vals_i = np.unique(self.T[:, i])
-            for r_i in vals_i:
-                mask_p = op_prem(self.T[:, i], r_i)     # premise mask
-                sup_count = mask_p.sum()
-                sup = sup_count / N
+        for kind, indices in [('certain', np.where(lower)[0]), ('possible', np.where(upper & ~lower)[0])]:
 
-                if sup < min_support or sup_count==0:
-                    continue
-                # for each other criterion j
-                for j in range(M):
-                    if j == i:
-                        continue
-                    # try all candidate thresholds on criterion j
-                    vals_j = np.unique(self.T[:, j])
-                    for r_j in vals_j:
-                        # check no counter‐examples
-                        mask_c = op_conc(self.T[:, j], r_j)
-                        if np.any(mask_p & (~mask_c)):
-                            # some x satisfies premise but violates conclusion → skip
-                            continue
-                        # rule holds; compute confidence
-                        conf = (mask_p & mask_c).sum() / sup_count
-                        if conf < min_confidence:
-                            continue
-                        # keep the **minimal** r_j for this (i,r_i,j) if desired
-                        # or just append all valid (i,r_i,j,r_j) pairs:
-                        rules.append((i, r_i, j, r_j, sup, conf))
-                        # if you only want the “tightest” conclusion, break here:
-                        break
+            for idx in indices:
+                profile = {i: self.pareto_set[idx, i] for i in crit}
+                mask = np.ones(self.N, dtype=bool)
+
+                for i, val in profile.items():
+                    mask &= comp(self.pareto_set[:, i], val)
+
+                support = mask.mean()
+                confidence = conf_fn(mask)
+
+                desc = self.make_rule_description(profile, concl, support, confidence, kind, direction)
+
+                rules.append((profile, concl, support, confidence, kind, direction, desc))
 
         return rules
 
-    def explain_rules(self, rules, verbose: bool = False):
-        """
-        Turn both decision‐rules and association rules into human‐readable IF-THEN strings.
 
-        Supports two formats in `rules`:
-          1. Decision rules   (cond: dict, concl: str, support, conf, kind, union_type)
-          2. Association rules (i, r_i, j, r_j, support, conf)
+    # ---------------------------------------------------------------------------------------------------------- #
+    # Association-rule mining
+    # ---------------------------------------------------------------------------------------------------------- #
 
-        :param rules: list of rule‐tuples
-        :param verbose:  if True, also print each rule as it’s generated
-        :return:        list of strings
+    def find_single_rule(self, f_i:np.ndarray,
+                             f_j:np.ndarray,
+                             min_support:float = 0.1,
+                             min_confidence:float = 0.8) -> Dict:
         """
-        explain = []
+        Find the strongest single association rule for two objectives f_i, f_j.
+
+        :param f_i: first objective
+        :param f_j: second objective
+        :param min_support: minimum support of the decision
+        :param min_confidence: minimum confidence of the decision
+
+        :return: The strongest single association rule for two objectives f_i, f_j.
+        """
+        best = None
+
+        ti = np.unique(f_i)
+        tj = np.unique(f_j)
+
+        for sym_x, op_x in ((">=", np.greater_equal), ("<=", np.less_equal)):
+            masks_x = {t: op_x(f_i, t) for t in ti}
+
+            for sym_y, op_y in ((">=", np.greater_equal), ("<=", np.less_equal)):
+                for t_x, mask_x in masks_x.items():
+                    n_prem = mask_x.sum()
+
+                    if n_prem == 0:
+                        continue
+
+                    for t_y in tj:
+                        mask_y = op_y(f_j, t_y)
+                        both = mask_x & mask_y
+                        support = both.mean()
+
+                        if support < min_support:
+                            continue
+
+                        confidence = both.sum() / n_prem
+                        if confidence < min_confidence:
+                            continue
+
+                        score = (confidence, support)
+                        rule = {'if': f"x {sym_x} {t_x:.4g}", 'then': f"y {sym_y} {t_y:.4g}",
+                            'support': support, 'confidence': confidence, 'score': score}
+
+                        if best is None or score > best['score']:
+                            best = rule
+
+        return best
+
+    def find_association_rules(self, pareto_set:np.ndarray,
+                               criteria:Tuple[int, ...]=None,
+                               min_support:float=0.1,
+                               min_confidence:float=0.8,
+                               bidirectional:bool=True) -> Dict:
+        """
+        Induce association rules among feature pairs.
+
+        :param pareto_set: feature pairs
+        :param criteria: criteria for association rules
+        :param min_support: minimum support of the decision
+        :param min_confidence: minimum confidence of the decision
+        :param bidirectional: bidirectional association rules
+
+        :return: the mapping (i,j) -> rule dict or None.
+        """
+        rules = {}
+
+        for i, j in combinations(criteria, 2):
+            r_ij = self.find_single_rule(pareto_set[:, i], pareto_set[:, j], min_support, min_confidence)
+
+            if bidirectional:
+                r_ji = self.find_single_rule(pareto_set[:, j], pareto_set[:, i], min_support, min_confidence)
+
+                if r_ij and r_ji:
+                    chosen = r_ij if r_ij['confidence'] >= r_ji['confidence'] else r_ji
+
+                else:
+                    chosen = r_ij or r_ji
+
+                if chosen:
+                    # ensure proper x,y labels
+                    if chosen is r_ji:
+                        chosen['if'] = chosen['if'].replace('x', f'f_{j}(x)')
+                        chosen['then'] = chosen['then'].replace('y', f'f_{i}(x)')
+                        rules[(j, i)] = chosen
+
+                    else:
+                        chosen['if'] = chosen['if'].replace('x', f'f_{i}(x)')
+                        chosen['then'] = chosen['then'].replace('y', f'f_{j}(x)')
+                        rules[(i, j)] = chosen
+
+                else:
+                    rules[(i, j)] = None
+
+            else:
+                rules[(i, j)] = r_ij
+
+        return rules
+
+
+    # ---------------------------------------------------------------------------------------------------------- #
+    # Write the rules as strings
+    # ---------------------------------------------------------------------------------------------------------- #
+    def explain_rules(self, rules:List, verbose:bool=False) -> List:
+        """
+        Convert decision or association rules to human-readable strings.
+
+        :param rules: decision or association rules
+        :param verbose: bool print the explanation if True, not if False
+
+        :return: list of strings describing the rules
+        """
+        explanations = []
 
         for rule in rules:
-            # --- decision rule: cond is a dict
-            if isinstance(rule[0], dict):
-                cond, concl, support, conf, kind, union = rule
-                # build “f_1 >= 1.0 AND f_2 >= 2.0” etc,
-                # flipping to <= if union=='down'
-                sep = " AND "
-                cond_str = sep.join(
-                    f"f_{i + 1} {'>=' if union == 'up' else '<='} {v}"
-                    for i, v in cond.items()
-                )
-                rule_string = (
-                    f"[{kind.upper()}] IF {cond_str} THEN {concl}  "
-                    f"(support={support:.2f}, confidence={conf:.2f})"
-                )
+            if len(rule) == 7:  # decision rule
+                desc = rule[6]
+                explanations.append(desc)
 
-            # --- association rule: plain tuple of ints/floats
+                if verbose:
+                    print(desc)
+
+            elif isinstance(rule, dict):  # association rule
+                desc = f"if {rule['if']} then {rule['then']}  "
+                desc += f"(support={rule['support']:.2f}, confidence={rule['confidence']:.2f})"
+                explanations.append(desc)
+
+                if verbose:
+                    print(desc)
+
             else:
-                i, r_i, j, r_j, support, conf = rule
-                # we assume the “premise” is always f_i >= r_i
-                # and the “conclusion” always f_j <= r_j
-                rule_string = (
-                    f"[ASSOC] IF f_{i + 1} >= {r_i} "
-                    f"THEN f_{j + 1} <= {r_j}  "
-                    f"(support={support:.2f}, confidence={conf:.2f})"
-                )
+                raise ValueError(f"Unknown rule format: {rule!r}")
 
-            explain.append(rule_string)
-            if verbose:
-                print(rule_string)
-
-        return explain
-
-    #def run(self):
-
-    # ------------------------------------------------------------------
-    # Getters and Setters
-    # ------------------------------------------------------------------
-
-
-
-
-
-
-
-
-
-
-
-
+        return explanations
