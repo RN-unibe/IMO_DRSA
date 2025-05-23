@@ -13,6 +13,7 @@ class DRSABaseProblem(ElementwiseProblem):
         self.P = P
         self.constr = constr
 
+
     def _evaluate(self, x, out, *args, **kwargs):
         # Evaluate objectives
         vals = np.array([f(x) for f in self.P])
