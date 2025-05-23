@@ -22,7 +22,8 @@ class BaseDM:
 
 
 class InteractiveDM(BaseDM):
-    def __init__(self, d):
+    def __init__(self):
+        d = None #TODO
         BaseDM.__init__(self, d)
 
     def select(self, rules):

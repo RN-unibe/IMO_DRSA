@@ -1,13 +1,13 @@
+import numpy as np
+
 from typing import Callable, List
 
-import numpy as np
 from pymoo.algorithms.moo.nsga2 import NSGA2
 from pymoo.optimize import minimize
 
 from src.imo_drsa.decision_maker import BaseDM
 from src.imo_drsa.drsa import DRSA
 from src.imo_drsa.problem import DRSABaseProblem
-
 
 
 class IMO_DRSA():
@@ -18,8 +18,16 @@ class IMO_DRSA():
     :param objectives: List of objective functions mapping a solution vector to a float.
     """
 
-    def __init__(self):
+    def __init__(self, **kwargs):
+        """
+        Initialise the DRSA and NSGA2 Classes.
+
+        :param kwargs: any and all NSGA2 parameters
+        """
         self.drsa = DRSA()
+        self.algorithm = NSGA2(**kwargs)
+
+
 
     def fit(self, universe:np.ndarray=None, objectives:List[Callable]=None):
         """
@@ -125,9 +133,8 @@ class IMO_DRSA():
                                   xl=xl, xu=xu,
                                   constr=constraints)
 
-        algorithm = NSGA2(pop_size=pop_size)
 
-        res = minimize(problem, algorithm, termination=('n_gen', n_gen), verbose=True)
+        res = minimize(problem, self.algorithm, termination=('n_gen', n_gen), verbose=True)
 
         pareto_front, pareto_set = res.X, res.F
 
