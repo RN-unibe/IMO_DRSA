@@ -1,8 +1,12 @@
+import unittest
 from unittest import TestCase
+
 import numpy as np
+
 from pymoo.problems import get_problem
 
 from src.imo_drsa.imo_drsa import IMO_DRSA
+
 
 class TestIMO_DRSA(TestCase):
     np.random.seed(42)
@@ -26,13 +30,12 @@ class TestIMO_DRSA(TestCase):
         self.assertTrue(np.all(F_out >= 0.0), "Some objective values < 0")
         self.assertTrue(np.all(F_out <= 1.0), "Some objective values > 1")
 
-
     def test_generate_constraints(self):
         # Single rule with thresholds matching x[0]=1, x[1]=2
-        rules = [({0: 1.0, 1: 2.0}, 'd>=2', 0.5, 0.9,  'certain', 'up',
-                    "[CERTAIN] IF f_1 >= 1.0 AND f_2 >= 2.0 THEN d >= 2 (support=0.50, confidence=0.90)"),
-                 ({0: 0.5, 1: 1.5}, 'd>=2', 0.3,  0.7, 'possible', 'up',
-                    "[POSSIBLE] IF f_0 >= 0.5 AND f_1 >= 1.5 THEN d >= 2 (support=0.30, confidence=0.70)")]
+        rules = [({0: 1.0, 1: 2.0}, 'd>=2', 0.5, 0.9, 'certain', 'up',
+                  "[CERTAIN] IF f_1 >= 1.0 AND f_2 >= 2.0 THEN d >= 2 (support=0.50, confidence=0.90)"),
+                 ({0: 0.5, 1: 1.5}, 'd>=2', 0.3, 0.7, 'possible', 'up',
+                  "[POSSIBLE] IF f_0 >= 0.5 AND f_1 >= 1.5 THEN d >= 2 (support=0.30, confidence=0.70)")]
 
         model = IMO_DRSA()
 
@@ -52,4 +55,5 @@ class TestIMO_DRSA(TestCase):
         self.assertNotEqual(dr[2](x), 0)
         self.assertNotEqual(dr[3](x), 0)
 
-
+if __name__ == '__main__':
+    unittest.main()

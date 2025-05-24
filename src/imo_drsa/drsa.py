@@ -6,8 +6,6 @@ from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-from mlxtend.frequent_patterns import apriori, association_rules
-from mlxtend.preprocessing import TransactionEncoder
 
 
 class DRSA:
@@ -24,7 +22,8 @@ class DRSA:
     :param m: Number of decision classes.
     """
 
-    def __init__(self, pareto_set:np.ndarray=None, decision_attribute:np.ndarray=None, criteria:Tuple[int, ...]=None):
+    def __init__(self, pareto_set: np.ndarray = None, decision_attribute: np.ndarray = None,
+                 criteria: Tuple[int, ...] = None):
         """
         :param pareto_set: NumPy array with shape (N, n_var), each row is an object, columns are criteria evaluated on that object
         :param decision_attribute: NumPy array of length N, integer‐encoded decision classes (1, ..., m)
@@ -33,8 +32,7 @@ class DRSA:
         if pareto_set is not None and decision_attribute is not None and criteria is not None:
             self.fit(pareto_set, decision_attribute, criteria)
 
-
-    def fit(self, pareto_set:np.ndarray, decision_attribute:np.ndarray, criteria:Tuple[int, ...]) -> None:
+    def fit(self, pareto_set: np.ndarray, decision_attribute: np.ndarray, criteria: Tuple[int, ...]) -> None:
         """
         :param pareto_set: NumPy array with shape (N, n_var), each row is an object, columns are criteria evaluated on that object
         :param decision_attribute: NumPy array of length N, integer‐encoded decision classes (1, ..., m)
@@ -51,15 +49,14 @@ class DRSA:
         self.N, self.n_features = pareto_set.shape
         self.m = int(decision_attribute.max())
 
-
     # ---------------------------------------------------------------------------------------------------------- #
     # Dominance‐cone computations
     # ---------------------------------------------------------------------------------------------------------- #
 
-    def positive_cone(self, criteria:Tuple[int, ...]) -> np.ndarray:
+    def positive_cone(self, criteria: Tuple[int, ...]) -> np.ndarray:
         """
         Boolean mask [y, x] True if object y P-dominates x.
-        
+
         :param criteria: list of column indices in T to use as P subset of F = {f1,...,fn}
 
         :return: the P-dominating set of x
@@ -72,11 +69,10 @@ class DRSA:
 
         return mask
 
-
-    def negative_cone(self, criteria:Tuple[int, ...]) -> np.ndarray:
+    def negative_cone(self, criteria: Tuple[int, ...]) -> np.ndarray:
         """
         Boolean mask [y, x] True if object x P-dominates y.
-        
+
         :param criteria: list of column indices in T to use as P subset of F = {f1,...,fn}
 
         :return: the P-dominated set of x
@@ -89,16 +85,15 @@ class DRSA:
 
         return mask
 
-
     # ---------------------------------------------------------------------------------------------------------- #
     # Rough approximations
     # ---------------------------------------------------------------------------------------------------------- #
 
-    def lower_approx_up(self, criteria:Tuple[int, ...], threshold:int) -> np.ndarray:
+    def lower_approx_up(self, criteria: Tuple[int, ...], threshold: int) -> np.ndarray:
         """
         Lower approximation of upward union for decision >= threshold.
 
-        :param criteria: list of column indices in T to use as P subset of F = {f1,...,fn} 
+        :param criteria: list of column indices in T to use as P subset of F = {f1,...,fn}
         :param threshold:int of class
 
         :return: np.ndarray containing the lower approximation of upward union
@@ -107,12 +102,11 @@ class DRSA:
 
         return np.all(~cone | (self.decision_attribute[:, None] >= threshold), axis=0)
 
-
-    def upper_approx_up(self, criteria:Tuple[int, ...], threshold:int) -> np.ndarray:
+    def upper_approx_up(self, criteria: Tuple[int, ...], threshold: int) -> np.ndarray:
         """
         Upper approximation of upward union for decision >= threshold.
 
-        :param criteria: list of column indices in T to use as P subset of F = {f1,...,fn} 
+        :param criteria: list of column indices in T to use as P subset of F = {f1,...,fn}
         :param threshold:int of class
 
         :return: np.ndarray containing the upper approximation of upward union
@@ -121,12 +115,11 @@ class DRSA:
 
         return np.any(cone & (self.decision_attribute[:, None] >= threshold), axis=0)
 
-
-    def lower_approx_down(self, criteria:Tuple[int, ...], threshold:int) -> np.ndarray:
+    def lower_approx_down(self, criteria: Tuple[int, ...], threshold: int) -> np.ndarray:
         """
         Lower approximation of downward union for decision <= threshold.
 
-        :param criteria: list of column indices in T to use as P subset of F = {f1,...,fn} 
+        :param criteria: list of column indices in T to use as P subset of F = {f1,...,fn}
         :param threshold:int of class
 
         :return: np.ndarray containing the lower approximation of downward union
@@ -135,12 +128,11 @@ class DRSA:
 
         return np.all(~cone | (self.decision_attribute[:, None] <= threshold), axis=0)
 
-
-    def upper_approx_down(self, criteria:Tuple[int, ...], threshold:int) -> np.ndarray:
+    def upper_approx_down(self, criteria: Tuple[int, ...], threshold: int) -> np.ndarray:
         """
         Upper approximation of downward union for decision <= threshold.
 
-        :param criteria: list of column indices in T to use as P subset of F = {f1,...,fn} 
+        :param criteria: list of column indices in T to use as P subset of F = {f1,...,fn}
         :param threshold:int of class
 
         :return: np.ndarray containing the upper approximation of downward union
@@ -153,11 +145,11 @@ class DRSA:
     # Quality of approximation gamma_P(Cl)
     # ---------------------------------------------------------------------------------------------------------- #
 
-    def quality(self, criteria:Tuple[int, ...]) -> float:
+    def quality(self, criteria: Tuple[int, ...]) -> float:
         """
         Compute the quality of approximation gamma for given criteria.
-        
-        :param criteria: list of column indices in T to use as P subset of F = {f1,...,fn} 
+
+        :param criteria: list of column indices in T to use as P subset of F = {f1,...,fn}
         """
         consistent_mask = np.ones(self.N, dtype=bool)
 
@@ -195,20 +187,18 @@ class DRSA:
             if reducts:
                 break
 
-
         return reducts
-
 
     # ---------------------------------------------------------------------------------------------------------- #
     # Decision-rule induction
     # ---------------------------------------------------------------------------------------------------------- #
 
-    def make_rule_description(self, profile:Dict,
-                                    conclusion:str,
-                                    support:float,
-                                    confidence:float,
-                                    kind:str,
-                                    direction:str) -> str:
+    def make_rule_description(self, profile: Dict,
+                              conclusion: str,
+                              support: float,
+                              confidence: float,
+                              kind: str,
+                              direction: str) -> str:
         """
         Build human-readable rule description.
 
@@ -225,16 +215,15 @@ class DRSA:
 
         for idx, val in profile.items():
             op = ">=" if direction == 'up' else "<="
-            conds.append(f"f_{idx+1} {op} {val}")
+            conds.append(f"f_{idx + 1} {op} {val}")
 
         premise = ' AND '.join(conds)
 
         return (f"[{kind.upper()}] IF {premise} THEN {conclusion} (support={support:.2f}, confidence={confidence:.2f})")
 
-
-    def induce_decision_rules(self, criteria:Tuple[int, ...]=None,
-                                    direction:str='up',
-                                    threshold:int=2) -> List:
+    def induce_decision_rules(self, criteria: Tuple[int, ...] = None,
+                              direction: str = 'up',
+                              threshold: int = 2) -> List:
         """
         Induce certain and possible decision rules for Cl>=threshold or Cl<=threshold.
         direction: 'up' or 'down'.
@@ -283,15 +272,14 @@ class DRSA:
 
         return rules
 
-
     # ---------------------------------------------------------------------------------------------------------- #
     # Association-rule mining
     # ---------------------------------------------------------------------------------------------------------- #
 
-    def find_single_rule(self, f_i:np.ndarray,
-                             f_j:np.ndarray,
-                             min_support:float = 0.1,
-                             min_confidence:float = 0.8) -> Dict:
+    def find_single_rule(self, f_i: np.ndarray,
+                         f_j: np.ndarray,
+                         min_support: float = 0.1,
+                         min_confidence: float = 0.8) -> Dict:
         """
         Find the strongest single association rule for two objectives f_i, f_j.
 
@@ -331,18 +319,18 @@ class DRSA:
 
                         score = (confidence, support)
                         rule = {'if': f"x {sym_x} {t_x:.4g}", 'then': f"y {sym_y} {t_y:.4g}",
-                            'support': support, 'confidence': confidence, 'score': score}
+                                'support': support, 'confidence': confidence, 'score': score}
 
                         if best is None or score > best['score']:
                             best = rule
 
         return best
 
-    def find_association_rules(self, pareto_set:np.ndarray,
-                               criteria:Tuple[int, ...]=None,
-                               min_support:float=0.1,
-                               min_confidence:float=0.8,
-                               bidirectional:bool=True) -> Dict:
+    def find_association_rules(self, pareto_set: np.ndarray,
+                               criteria: Tuple[int, ...] = None,
+                               min_support: float = 0.1,
+                               min_confidence: float = 0.8,
+                               bidirectional: bool = True) -> Dict:
         """
         Induce association rules among feature pairs.
 
@@ -388,11 +376,11 @@ class DRSA:
 
         return rules
 
-
     # ---------------------------------------------------------------------------------------------------------- #
     # Write the rules as strings
     # ---------------------------------------------------------------------------------------------------------- #
-    def explain_rules(self, rules:List, verbose:bool=False) -> List:
+    @staticmethod
+    def explain_rules(rules: List, verbose: bool = True) -> List:
         """
         Convert decision or association rules to human-readable strings.
 

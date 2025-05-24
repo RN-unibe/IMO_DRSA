@@ -27,9 +27,7 @@ class IMO_DRSA():
         self.drsa = DRSA()
         self.algorithm = NSGA2(**kwargs)
 
-
-
-    def fit(self, universe:np.ndarray=None, objectives:List[Callable]=None):
+    def fit(self, universe: np.ndarray = None, objectives: List[Callable] = None):
         """
         Initialize the IMO-DRSA solver.
 
@@ -39,8 +37,7 @@ class IMO_DRSA():
         self.universe = universe
         self.objectives = objectives
 
-
-    def solve(self, decision_maker:BaseDM, visualise:bool=False, max_iter:int=5) -> bool:
+    def solve(self, decision_maker: BaseDM, visualise: bool = False, max_iter: int = 5) -> bool:
         """
         Run the interactive optimization loop.
 
@@ -97,14 +94,10 @@ class IMO_DRSA():
 
         return False
 
-
-
     def _visualise(self, pareto_front, pareto_set) -> None:
         pass
 
-
-
-    def pareto_front(self, U, P, constraints:List=None, pop_size=100, n_gen=200):
+    def pareto_front(self, U, P, constraints: List = None, pop_size=100, n_gen=200):
         """
         Compute Pareto-optimal set using NSGA2 algorithm.
 
@@ -116,7 +109,6 @@ class IMO_DRSA():
 
         :return: Tuple of decision variables (pareto_front) and objective values of Pareto front (pareto_set).
         """
-
 
         xl = np.min(U, axis=0)
         xu = np.max(U, axis=0)
@@ -133,14 +125,11 @@ class IMO_DRSA():
                                   xl=xl, xu=xu,
                                   constr=constraints)
 
-
         res = minimize(problem, self.algorithm, termination=('n_gen', n_gen), verbose=True)
 
         pareto_front, pareto_set = res.X, res.F
 
         return pareto_front, pareto_set
-
-
 
     def generate_constraints(self, selected_rules) -> List:
         """
@@ -162,6 +151,3 @@ class IMO_DRSA():
                     constraints.append(lambda x, fi=idx, th=threshold: self.objectives[fi](x) - th)
 
         return constraints
-
-
-

@@ -1,3 +1,4 @@
+import unittest
 from unittest import TestCase
 
 import numpy as np
@@ -7,7 +8,6 @@ from src.imo_drsa.drsa import DRSA
 
 class TestDRSA(TestCase):
     np.random.seed(42)
-
 
     def setUp(self):
         self.T = np.array([[5, 7],
@@ -23,11 +23,11 @@ class TestDRSA(TestCase):
         pos = self.drsa.positive_cone((0, 1))
 
         expected = np.array([
-            [ True,  True, False,  True,  True],
-            [False,  True, False, False, False],
-            [False, False,  True, False, False],
-            [False,  True, False,  True,  True],
-            [False, False, False, False,  True]])
+            [True, True, False, True, True],
+            [False, True, False, False, False],
+            [False, False, True, False, False],
+            [False, True, False, True, True],
+            [False, False, False, False, True]])
 
         self.assertTrue(np.array_equal(pos, expected), f"Positive cone incorrect: {pos}")
 
@@ -45,7 +45,7 @@ class TestDRSA(TestCase):
         up_up = self.drsa.upper_approx_up((0, 1), threshold=2)
 
         self.assertListEqual(low_up.tolist(), [False, False, True, False, False])
-        self.assertListEqual(up_up.tolist(),  [True, False, True, True, True])
+        self.assertListEqual(up_up.tolist(), [True, False, True, True, True])
 
     def test_quality(self):
         gamma = self.drsa.quality((0, 1))
@@ -76,6 +76,7 @@ class TestDRSA(TestCase):
         self.assertGreaterEqual(rule['confidence'], 0)
         self.assertLessEqual(rule['confidence'], 1)
 
+
     # The following tests validate three-objective rules
     def test_generate_association_rules_three_objectives(self):
         T = np.array([[5, 7, 1],
@@ -105,6 +106,7 @@ class TestDRSA(TestCase):
             self.assertGreaterEqual(rule['confidence'], 0)
             self.assertLessEqual(rule['confidence'], 1)
 
+
     def test_general(self):
         # Validate pipeline end-to-end
         T = np.array([[5, 7],
@@ -122,7 +124,7 @@ class TestDRSA(TestCase):
         up_up = drsa.upper_approx_up((0, 1), threshold=2)
 
         self.assertListEqual(low_up.tolist(), [False, False, True, False, False])
-        self.assertListEqual(up_up.tolist(),  [True, False, True, True, True])
+        self.assertListEqual(up_up.tolist(), [True, False, True, True, True])
 
         gamma = drsa.quality((0, 1))
         self.assertAlmostEqual(gamma, 0.4, places=6)
@@ -134,3 +136,7 @@ class TestDRSA(TestCase):
 
         # Must produce at least one rule
         self.assertTrue(len(rules) > 0)
+
+
+if __name__ == '__main__':
+    unittest.main()

@@ -30,7 +30,8 @@ Generate a sample from the current approximation of the Pareto optimal set.
 
 6. Repeat
 
-
+# Setup
+Just run 'setup.sh' for MacOS or Linux, and 'setup.ps1' for Windows.
 
 ## Sources:
 
