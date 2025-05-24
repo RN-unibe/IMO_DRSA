@@ -22,7 +22,7 @@ class TestIMO_DRSA(TestCase):
 
         # Pass by keyword to match __init__ signature
         imo = IMO_DRSA(universe=universe, objectives=objectives)
-        X, F_out = imo.pareto_front(universe, objectives, constraints=None, pop_size=10, n_gen=5)
+        X, F_out = imo.pareto_front(universe, constraints=None, n_gen=5)
 
         self.assertEqual(X.shape[1], prob.n_var)
         self.assertEqual(F_out.shape[1], prob.n_obj)

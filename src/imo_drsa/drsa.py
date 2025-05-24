@@ -22,8 +22,9 @@ class DRSA:
     :param m: Number of decision classes.
     """
 
-    def __init__(self, pareto_set: np.ndarray = None, decision_attribute: np.ndarray = None,
-                 criteria: Tuple[int, ...] = None):
+    def __init__(self, pareto_set:np.ndarray=None,
+                 decision_attribute:np.ndarray=None,
+                 criteria:Tuple=None):
         """
         :param pareto_set: NumPy array with shape (N, n_var), each row is an object, columns are criteria evaluated on that object
         :param decision_attribute: NumPy array of length N, integer‐encoded decision classes (1, ..., m)
@@ -32,7 +33,10 @@ class DRSA:
         if pareto_set is not None and decision_attribute is not None and criteria is not None:
             self.fit(pareto_set, decision_attribute, criteria)
 
-    def fit(self, pareto_set: np.ndarray, decision_attribute: np.ndarray, criteria: Tuple[int, ...]) -> None:
+
+    def fit(self, pareto_set:np.ndarray,
+            decision_attribute:np.ndarray,
+            criteria:Tuple) -> None:
         """
         :param pareto_set: NumPy array with shape (N, n_var), each row is an object, columns are criteria evaluated on that object
         :param decision_attribute: NumPy array of length N, integer‐encoded decision classes (1, ..., m)
@@ -53,7 +57,7 @@ class DRSA:
     # Dominance‐cone computations
     # ---------------------------------------------------------------------------------------------------------- #
 
-    def positive_cone(self, criteria: Tuple[int, ...]) -> np.ndarray:
+    def positive_cone(self, criteria: Tuple) -> np.ndarray:
         """
         Boolean mask [y, x] True if object y P-dominates x.
 
@@ -69,7 +73,7 @@ class DRSA:
 
         return mask
 
-    def negative_cone(self, criteria: Tuple[int, ...]) -> np.ndarray:
+    def negative_cone(self, criteria: Tuple) -> np.ndarray:
         """
         Boolean mask [y, x] True if object x P-dominates y.
 
@@ -89,7 +93,7 @@ class DRSA:
     # Rough approximations
     # ---------------------------------------------------------------------------------------------------------- #
 
-    def lower_approx_up(self, criteria: Tuple[int, ...], threshold: int) -> np.ndarray:
+    def lower_approx_up(self, criteria: Tuple, threshold: int) -> np.ndarray:
         """
         Lower approximation of upward union for decision >= threshold.
 
@@ -102,7 +106,7 @@ class DRSA:
 
         return np.all(~cone | (self.decision_attribute[:, None] >= threshold), axis=0)
 
-    def upper_approx_up(self, criteria: Tuple[int, ...], threshold: int) -> np.ndarray:
+    def upper_approx_up(self, criteria: Tuple, threshold: int) -> np.ndarray:
         """
         Upper approximation of upward union for decision >= threshold.
 
@@ -115,7 +119,7 @@ class DRSA:
 
         return np.any(cone & (self.decision_attribute[:, None] >= threshold), axis=0)
 
-    def lower_approx_down(self, criteria: Tuple[int, ...], threshold: int) -> np.ndarray:
+    def lower_approx_down(self, criteria: Tuple, threshold: int) -> np.ndarray:
         """
         Lower approximation of downward union for decision <= threshold.
 
@@ -128,7 +132,7 @@ class DRSA:
 
         return np.all(~cone | (self.decision_attribute[:, None] <= threshold), axis=0)
 
-    def upper_approx_down(self, criteria: Tuple[int, ...], threshold: int) -> np.ndarray:
+    def upper_approx_down(self, criteria: Tuple, threshold: int) -> np.ndarray:
         """
         Upper approximation of downward union for decision <= threshold.
 
@@ -145,7 +149,7 @@ class DRSA:
     # Quality of approximation gamma_P(Cl)
     # ---------------------------------------------------------------------------------------------------------- #
 
-    def quality(self, criteria: Tuple[int, ...]) -> float:
+    def quality(self, criteria: Tuple) -> float:
         """
         Compute the quality of approximation gamma for given criteria.
 
@@ -165,7 +169,7 @@ class DRSA:
     # ---------------------------------------------------------------------------------------------------------- #
     # Finding reducts (brute‐force; not good for large n, use heuristic)
     # ---------------------------------------------------------------------------------------------------------- #
-    def find_reducts(self) -> List[Tuple[int, ...]]:
+    def find_reducts(self) -> List[Tuple]:
         """
         Return minimal subsets of criteria preserving full quality.
 
@@ -221,7 +225,7 @@ class DRSA:
 
         return (f"[{kind.upper()}] IF {premise} THEN {conclusion} (support={support:.2f}, confidence={confidence:.2f})")
 
-    def induce_decision_rules(self, criteria: Tuple[int, ...] = None,
+    def induce_decision_rules(self, criteria: Tuple = None,
                               direction: str = 'up',
                               threshold: int = 2) -> List:
         """
@@ -327,12 +331,13 @@ class DRSA:
         return best
 
     def find_association_rules(self, pareto_set: np.ndarray,
-                               criteria: Tuple[int, ...] = None,
+                               criteria: Tuple = None,
                                min_support: float = 0.1,
                                min_confidence: float = 0.8,
                                bidirectional: bool = True) -> Dict:
         """
         Induce association rules among feature pairs.
+        TODO: This isn't really DRSA's responsibility, maybe move directly to IMO_DRSA?
 
         :param pareto_set: feature pairs
         :param criteria: criteria for association rules

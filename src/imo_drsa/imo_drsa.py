@@ -3,11 +3,13 @@ import numpy as np
 from typing import Callable, List
 
 from pymoo.algorithms.moo.nsga2 import NSGA2
+from pymoo.core.problem import Problem, ElementwiseProblem
 from pymoo.optimize import minimize
+
 
 from src.imo_drsa.decision_maker import BaseDM
 from src.imo_drsa.drsa import DRSA
-from src.imo_drsa.problem import DRSABaseProblem
+from src.imo_drsa.problem_wrapper import ElementwiseProblemWrapper, ProblemWrapper
 
 
 class IMO_DRSA():
@@ -27,15 +29,21 @@ class IMO_DRSA():
         self.drsa = DRSA()
         self.algorithm = NSGA2(**kwargs)
 
-    def fit(self, universe: np.ndarray = None, objectives: List[Callable] = None):
-        """
-        Initialize the IMO-DRSA solver.
 
+    def fit(self, problem:Problem,
+            universe: np.ndarray,
+            objectives: List[Callable]) -> None:
+        """
+        Fit the IMO-DRSA solver.
+
+        :param problem: Problem to be optimised.
         :param universe: Initial population bounds.
         :param objectives: Objective functions.
         """
+        self.problem = ProblemWrapper(base_problem=problem)
         self.universe = universe
         self.objectives = objectives
+
 
     def solve(self, decision_maker: BaseDM, visualise: bool = False, max_iter: int = 5) -> bool:
         """
@@ -47,23 +55,23 @@ class IMO_DRSA():
         :return: True if session finishes successfully; False otherwise.
         """
         assert isinstance(self.universe, np.ndarray), "Universe must be a numpy array."
+        assert self.universe is not None, "Universe must not be empty."
         assert self.objectives is not None, "Objectives must be provided."
 
-        constraints = []
         rules = []
         P_idx = tuple(range(len(self.objectives)))
 
         iteration: int = 0
         while iteration < max_iter:
             # Compute Pareto front under current constraints
-            pareto_front, pareto_set = self.pareto_front(self.universe, self.objectives, constraints)
-
-            if visualise:
-                self._visualise(pareto_front, pareto_set)
+            pareto_front, pareto_set = self.pareto_front()
 
             if pareto_front.size == 0:
                 print("Infeasible constraints: please revise.")
                 return False
+
+            if visualise:
+                self._visualise(pareto_front, pareto_set)
 
             # Ask DM if current solutions are satisfactory
             if decision_maker.is_satisfied(pareto_front, pareto_set, rules):
@@ -88,16 +96,18 @@ class IMO_DRSA():
 
             # Generate new constraints from selected rules
             new_constraints = self.generate_constraints(selected)
-            constraints.extend(new_constraints)
+            self.problem.extend_constraints(new_constraints)
 
             iteration += 1
 
         return False
 
+
     def _visualise(self, pareto_front, pareto_set) -> None:
         pass
 
-    def pareto_front(self, U, P, constraints: List = None, pop_size=100, n_gen=200):
+
+    def pareto_front(self, n_gen=200) -> (np.ndarray, np.ndarray):
         """
         Compute Pareto-optimal set using NSGA2 algorithm.
 
@@ -110,28 +120,14 @@ class IMO_DRSA():
         :return: Tuple of decision variables (pareto_front) and objective values of Pareto front (pareto_set).
         """
 
-        xl = np.min(U, axis=0)
-        xu = np.max(U, axis=0)
-
-        delta = xu - xl
-        delta[delta == 0] = 1e-6  # prevent identical bounds
-        margin = 0.05
-        xl = xl - margin * delta
-        xu = xu + margin * delta
-
-        problem = DRSABaseProblem(P=P,
-                                  n_var=U.shape[1],
-                                  n_obj=len(P),
-                                  xl=xl, xu=xu,
-                                  constr=constraints)
-
-        res = minimize(problem, self.algorithm, termination=('n_gen', n_gen), verbose=True)
+        res = minimize(self.problem, self.algorithm, termination=('n_gen', n_gen), verbose=True)
 
         pareto_front, pareto_set = res.X, res.F
 
         return pareto_front, pareto_set
 
-    def generate_constraints(self, selected_rules) -> List:
+
+    def generate_constraints(self, selected_rules) -> List[Callable]:
         """
         Translate selected decision rules into inequality constraints g(x) <= 0.
 
