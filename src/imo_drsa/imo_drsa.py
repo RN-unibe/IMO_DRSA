@@ -9,7 +9,7 @@ from pymoo.optimize import minimize
 
 from src.imo_drsa.decision_maker import BaseDM
 from src.imo_drsa.drsa import DRSA
-from src.imo_drsa.problem_wrapper import ElementwiseProblemWrapper, ProblemWrapper
+from src.imo_drsa.problem_wrapper import ProblemWrapper
 
 
 class IMO_DRSA():
