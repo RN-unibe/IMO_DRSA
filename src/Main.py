@@ -1,13 +1,14 @@
-import numpy as np
+from imo_drsa.decision_maker import InteractiveDM
+from imo_drsa.engine import IMO_DRSAEngine
 
-from imo_drsa.imo_drsa import IMO_DRSA
-from imo_drsa.problem_wrapper import DRSABaseProblem
-from src.imo_drsa.decision_maker import InteractiveDM
+from pymoo.problems import get_problem
 
 if __name__ == "__main__":
     dm = InteractiveDM()
-    engine = IMO_DRSA()
+    problem = get_problem("ackley")
 
-    engine.fit()
+    engine = IMO_DRSAEngine()
+
+    engine.fit(problem=problem)
 
     engine.solve(dm)

@@ -8,3 +8,4 @@ efficient-apriori==2.0.5
 sphinx
 pytest
 pytest-sugar
+wrapt==1.17.2

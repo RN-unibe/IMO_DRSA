@@ -3,16 +3,18 @@ import numpy as np
 from typing import Callable, List
 
 from pymoo.algorithms.moo.nsga2 import NSGA2
-from pymoo.core.problem import Problem, ElementwiseProblem
+from pymoo.core.problem import Problem
 from pymoo.optimize import minimize
+from pymoo.util.plotting import plot
+
 
 
 from src.imo_drsa.decision_maker import BaseDM
 from src.imo_drsa.drsa import DRSA
-from src.imo_drsa.problem_wrapper import ProblemWrapper
+from src.imo_drsa.problem_extender import ProblemExtender
 
 
-class IMO_DRSA():
+class IMO_DRSAEngine():
     """
     Interactive Multi-objective Optimization using Dominance-based Rough Set Approach (IMO-DRSA).
 
@@ -20,29 +22,34 @@ class IMO_DRSA():
     :param objectives: List of objective functions mapping a solution vector to a float.
     """
 
-    def __init__(self, **kwargs):
+    def __init__(self, algorithm=NSGA2, **kwargs):
         """
         Initialise the DRSA and NSGA2 Classes.
 
-        :param kwargs: any and all NSGA2 parameters
+        :param algorithm: Algorithm to use. Must be pymoo compatible
+        :param kwargs: any and all algorithm parameters
         """
         self.drsa = DRSA()
-        self.algorithm = NSGA2(**kwargs)
+        self.algorithm = algorithm(**kwargs)
+        self.wrapper = ProblemExtender()
 
 
-    def fit(self, problem:Problem,
-            universe: np.ndarray,
-            objectives: List[Callable]) -> None:
+    def fit(self, problem:Problem, universe:np.ndarray=None):
         """
         Fit the IMO-DRSA solver.
 
         :param problem: Problem to be optimised.
         :param universe: Initial population bounds.
-        :param objectives: Objective functions.
         """
-        self.problem = ProblemWrapper(base_problem=problem)
-        self.universe = universe
-        self.objectives = objectives
+        self.problem = self.wrapper.enable_dynamic_constraints(problem=problem)
+
+        if universe is None:
+            self.universe = problem.pareto_front()
+        else:
+            self.universe = universe
+
+        return self
+
 
 
     def solve(self, decision_maker: BaseDM, visualise: bool = False, max_iter: int = 5) -> bool:
@@ -56,22 +63,21 @@ class IMO_DRSA():
         """
         assert isinstance(self.universe, np.ndarray), "Universe must be a numpy array."
         assert self.universe is not None, "Universe must not be empty."
-        assert self.objectives is not None, "Objectives must be provided."
 
         rules = []
-        P_idx = tuple(range(len(self.objectives)))
+        P_idx = [i for i in range(0, self.problem.n_obj-1)]
 
         iteration: int = 0
         while iteration < max_iter:
             # Compute Pareto front under current constraints
-            pareto_front, pareto_set = self.pareto_front()
+            pareto_front, pareto_set = self.get_pareto_front()
 
             if pareto_front.size == 0:
                 print("Infeasible constraints: please revise.")
                 return False
 
             if visualise:
-                self._visualise(pareto_front, pareto_set)
+                self.visualise()
 
             # Ask DM if current solutions are satisfactory
             if decision_maker.is_satisfied(pareto_front, pareto_set, rules):
@@ -85,29 +91,30 @@ class IMO_DRSA():
 
             # Find a reduct and induce decision rules
             self.drsa.fit(pareto_set, decisions, P_idx)
-            reduct = self.drsa.find_reducts()[0]
+            P_idx = self.drsa.find_reducts()[0]
 
-            self.objectives = [self.objectives[i] for i in reduct]
 
-            rules = self.drsa.induce_decision_rules(reduct)
+            rules = self.drsa.induce_decision_rules(P_idx)
 
             # DM selects preferred rules
             selected = decision_maker.select(rules)
 
             # Generate new constraints from selected rules
             new_constraints = self.generate_constraints(selected)
-            self.problem.extend_constraints(new_constraints)
+            self.problem.add_constraints(new_constraints)
 
             iteration += 1
 
         return False
 
 
-    def _visualise(self, pareto_front, pareto_set) -> None:
-        pass
+    def visualise(self) -> None:
+        print(self.problem.pareto_front())
+        plot(self.problem.pareto_front())
 
 
-    def pareto_front(self, n_gen=200) -> (np.ndarray, np.ndarray):
+
+    def get_pareto_front(self, n_gen=200) -> (np.ndarray, np.ndarray):
         """
         Compute Pareto-optimal set using NSGA2 algorithm.
 
