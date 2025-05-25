@@ -7,6 +7,16 @@ if __name__ == "__main__":
     dm = InteractiveDM()
     problem = get_problem("ackley")
 
+    def f0(x):
+        return 4 * x[0] * x[0] + 4 * x[1] * x[1]
+
+
+    def f1(x):
+        term1 = x[0] - 5
+        term2 = x[1] - 5
+
+        return term1 * term1 + term2 * term2
+
     engine = IMO_DRSAEngine()
 
     engine.fit(problem=problem)

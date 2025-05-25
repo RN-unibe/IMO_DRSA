@@ -34,7 +34,7 @@ class IMO_DRSAEngine():
         self.wrapper = ProblemExtender()
 
 
-    def fit(self, problem:Problem, universe:np.ndarray=None):
+    def fit(self, problem:Problem, objectives:List[Callable]=None):
         """
         Fit the IMO-DRSA solver.
 
@@ -42,11 +42,7 @@ class IMO_DRSAEngine():
         :param universe: Initial population bounds.
         """
         self.problem = self.wrapper.enable_dynamic_constraints(problem=problem)
-
-        if universe is None:
-            self.universe = problem.pareto_front()
-        else:
-            self.universe = universe
+        self.objectives = objectives
 
         return self
 
@@ -61,16 +57,16 @@ class IMO_DRSAEngine():
         :param max_iter: Maximum interactive iterations.
         :return: True if session finishes successfully; False otherwise.
         """
-        assert isinstance(self.universe, np.ndarray), "Universe must be a numpy array."
-        assert self.universe is not None, "Universe must not be empty."
 
-        rules = []
-        P_idx = [i for i in range(0, self.problem.n_obj-1)]
+
+        P_idx = [i for i in range(0, len(self.objectives))]
+        decision_attribute = None
 
         iteration: int = 0
         while iteration < max_iter:
             # Compute Pareto front under current constraints
             pareto_front, pareto_set = self.get_pareto_front()
+
 
             if pareto_front.size == 0:
                 print("Infeasible constraints: please revise.")
@@ -79,20 +75,17 @@ class IMO_DRSAEngine():
             if visualise:
                 self.visualise()
 
-            # Ask DM if current solutions are satisfactory
-            if decision_maker.is_satisfied(pareto_front, pareto_set, rules):
-                return True
+            self.drsa.fit(pareto_set=pareto_set, criteria=P_idx, decision_attribute=decision_attribute)
 
             # Induce association rules from current table
-            association_rules = self.drsa.find_association_rules(pareto_set)
+            association_rules = self.drsa.find_association_rules(pareto_set, criteria=P_idx)
 
             # Classify with DM feedback
             decisions = decision_maker.classify(pareto_set, association_rules)
 
             # Find a reduct and induce decision rules
-            self.drsa.fit(pareto_set, decisions, P_idx)
+            self.drsa.fit(pareto_set, P_idx, decisions)
             P_idx = self.drsa.find_reducts()[0]
-
 
             rules = self.drsa.induce_decision_rules(P_idx)
 
@@ -103,13 +96,20 @@ class IMO_DRSAEngine():
             new_constraints = self.generate_constraints(selected)
             self.problem.add_constraints(new_constraints)
 
+            if visualise:
+                self.visualise()
+            # Ask DM if current solutions are satisfactory
+            if decision_maker.is_satisfied(pareto_front, pareto_set, rules):
+                return True
+
+
+
             iteration += 1
 
         return False
 
 
     def visualise(self) -> None:
-        print(self.problem.pareto_front())
         plot(self.problem.pareto_front())
 
 
@@ -126,8 +126,10 @@ class IMO_DRSAEngine():
 
         :return: Tuple of decision variables (pareto_front) and objective values of Pareto front (pareto_set).
         """
+        algorithm = NSGA2(pop_size=100)
 
-        res = minimize(self.problem, self.algorithm, termination=('n_gen', n_gen), verbose=True)
+        res = minimize(self.problem, algorithm, termination=('n_gen', n_gen), verbose=False)
+
 
         pareto_front, pareto_set = res.X, res.F
 
@@ -147,10 +149,10 @@ class IMO_DRSAEngine():
             for idx, threshold in profile.items():
                 if direction == 'up':
                     # f_i(x) >= threshold  ->  threshold - f_i(x) <= 0
-                    constraints.append(lambda x, fi=idx, th=threshold: th - self.objectives[fi](x))
+                    constraints.append(lambda x, i=idx, th=threshold: th - self.objectives[i](x))
 
                 else:
                     # f_i(x) <= threshold  ->  f_i(x) - threshold <= 0
-                    constraints.append(lambda x, fi=idx, th=threshold: self.objectives[fi](x) - th)
+                    constraints.append(lambda x, i=idx, th=threshold: self.objectives[i](x) - th)
 
         return constraints

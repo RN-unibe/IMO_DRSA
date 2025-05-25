@@ -1,3 +1,5 @@
+import random
+
 import numpy as np
 
 from .drsa import DRSA
@@ -61,6 +63,21 @@ class AutomatedDM(BaseDM):
     def __init__(self):
         BaseDM.__init__(self)
 
+
+    def classify(self, T, association_rules):
+        """
+
+        :param T:
+        :param association_rules:
+        :return: classification of the values in T with either 2 (good) or 1 (other)
+        """
+        n = len(T)
+        half = int((n*0.5))
+        d1 = [1 for _ in range(0, half)]
+        d2 = [2 for _ in range(half+1, n)]
+
+        return np.concatenate([d1, d2])
+
     def select(self, rules):
         """
         For now, just only select the 'certain' rules.
@@ -82,6 +99,44 @@ class AutomatedDM(BaseDM):
 # ---------------------------------------------------------------------------------------------------------- #
 
 class DummyDM(BaseDM):
-    def __init__(self, decision_attribute):
+    def __init__(self):
         BaseDM.__init__(self)
-        self.decision_attribute = decision_attribute
+        self.round = 0
+
+    def classify(self, T, association_rules):
+        """
+
+        :param T:
+        :param association_rules:
+        :return: classification of the values in T with either 2 (good) or 1 (other)
+        """
+
+        random.seed(42)
+        n = len(T)
+
+        return np.array([random.choice([1, 2]) for _ in range(n)])
+
+
+    def select(self, rules):
+        """
+        For now, just only select the 'certain' rules.
+
+        :param rules:
+        :return:
+        """
+        chosen = []
+
+        for rule in rules:
+            if rule[4] == 'certain':
+                chosen.append(rule)
+
+        return chosen
+
+
+    def is_satisfied(self, X, T, rules) -> bool:
+        if self.round == 1 :
+            return True
+
+        self.round = 1
+
+        return False

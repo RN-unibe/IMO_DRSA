@@ -5,6 +5,7 @@ import numpy as np
 
 from pymoo.problems import get_problem
 
+from src.imo_drsa.decision_maker import DummyDM, InteractiveDM
 from src.imo_drsa.engine import IMO_DRSAEngine
 
 
@@ -17,9 +18,7 @@ class TestIMO_DRSAEngine(TestCase):
         engine = IMO_DRSAEngine().fit(prob)
         engine.get_pareto_front(n_gen=5) # just to see if it works
 
-        engine.visualise()
-
-
+        #engine.visualise()
 
 
     def test_generate_constraints(self):
@@ -46,6 +45,30 @@ class TestIMO_DRSAEngine(TestCase):
         # And the two "possible" constraints should not be zero for x
         self.assertNotEqual(dr[2](x), 0)
         self.assertNotEqual(dr[3](x), 0)
+
+
+
+    def test_solve(self):
+        dm = DummyDM()
+        problem = get_problem("bnh")
+
+        def f0(x):
+            return 4 * x[0] * x[0] + 4 * x[1] * x[1]
+
+        def f1(x):
+            term1 = x[0] - 5
+            term2 = x[1] - 5
+
+            return term1 * term1 + term2 * term2
+
+        objectives = [f0, f1]
+
+        engine = IMO_DRSAEngine().fit(problem=problem, objectives=objectives)
+
+        engine.solve(dm)
+
+
+
 
 if __name__ == '__main__':
     unittest.main()

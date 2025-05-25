@@ -31,12 +31,10 @@ class DRSA:
         :param criteria: list of column indices in pareto_set
         """
         if pareto_set is not None and decision_attribute is not None and criteria is not None:
-            self.fit(pareto_set, decision_attribute, criteria)
+            self.fit(pareto_set, criteria, decision_attribute)
 
 
-    def fit(self, pareto_set:np.ndarray,
-            decision_attribute:np.ndarray,
-            criteria:Tuple) -> None:
+    def fit(self, pareto_set: np.ndarray, criteria: Tuple, decision_attribute: np.ndarray = None) -> None:
         """
         :param pareto_set: NumPy array with shape (N, n_var), each row is an object, columns are criteria evaluated on that object
         :param decision_attribute: NumPy array of length N, integer‐encoded decision classes (1, ..., m)
@@ -50,8 +48,8 @@ class DRSA:
 
         self.criteria_full = criteria
 
-        self.N, self.n_features = pareto_set.shape
-        self.m = int(decision_attribute.max())
+        self.N = pareto_set.shape[0]
+        self.m = 0 if decision_attribute is None else (decision_attribute.max())
 
     # ---------------------------------------------------------------------------------------------------------- #
     # Dominance‐cone computations
@@ -226,7 +224,7 @@ class DRSA:
         return (f"[{kind.upper()}] IF {premise} THEN {conclusion} (support={support:.2f}, confidence={confidence:.2f})")
 
     def induce_decision_rules(self, criteria: Tuple = None,
-                              direction: str = 'up',
+                              direction: str = 'down',
                               threshold: int = 2) -> List:
         """
         Induce certain and possible decision rules for Cl>=threshold or Cl<=threshold.
@@ -349,35 +347,35 @@ class DRSA:
         """
         rules = {}
 
-        for i, j in combinations(criteria, 2):
-            r_ij = self.find_single_rule(pareto_set[:, i], pareto_set[:, j], min_support, min_confidence)
 
-            if bidirectional:
-                r_ji = self.find_single_rule(pareto_set[:, j], pareto_set[:, i], min_support, min_confidence)
+        for i, j in combinations(criteria, 2) :
+                r_ij = self.find_single_rule(pareto_set[:, i], pareto_set[:, j], min_support, min_confidence)
 
-                if r_ij and r_ji:
-                    chosen = r_ij if r_ij['confidence'] >= r_ji['confidence'] else r_ji
+                if bidirectional:
+                    r_ji = self.find_single_rule(pareto_set[:, j], pareto_set[:, i], min_support, min_confidence)
 
-                else:
-                    chosen = r_ij or r_ji
-
-                if chosen:
-                    # ensure proper x,y labels
-                    if chosen is r_ji:
-                        chosen['if'] = chosen['if'].replace('x', f'f_{j}(x)')
-                        chosen['then'] = chosen['then'].replace('y', f'f_{i}(x)')
-                        rules[(j, i)] = chosen
+                    if r_ij and r_ji:
+                        chosen = r_ij if r_ij['confidence'] >= r_ji['confidence'] else r_ji
 
                     else:
-                        chosen['if'] = chosen['if'].replace('x', f'f_{i}(x)')
-                        chosen['then'] = chosen['then'].replace('y', f'f_{j}(x)')
-                        rules[(i, j)] = chosen
+                        chosen = r_ij or r_ji
+
+                    if chosen:
+                        if chosen is r_ji:
+                            chosen['if'] = chosen['if'].replace('x', f'f_{j}(x)')
+                            chosen['then'] = chosen['then'].replace('y', f'f_{i}(x)')
+                            rules[(j, i)] = chosen
+
+                        else:
+                            chosen['if'] = chosen['if'].replace('x', f'f_{i}(x)')
+                            chosen['then'] = chosen['then'].replace('y', f'f_{j}(x)')
+                            rules[(i, j)] = chosen
+
+                    else:
+                        rules[(i, j)] = None
 
                 else:
-                    rules[(i, j)] = None
-
-            else:
-                rules[(i, j)] = r_ij
+                    rules[(i, j)] = r_ij
 
         return rules
 

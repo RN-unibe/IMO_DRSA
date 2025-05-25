@@ -13,42 +13,38 @@ class ProblemExtender():
         """
         Mutate a problem so that each call to _evaluate runs the original logic
         and then appends all constraints in problem._extra_constraints.
-        You can call this function multiple times; it will accumulate constraints
-        and adjust n_constr/n_ieq_constr each time.
-
-        Passing new_constraints=None (or an empty list) will still install the
-        wrapper on the first call without adding any constraints yet.
         """
 
-        # 1) On first call, stash the original _evaluate and bind the wrapper
         if not hasattr(problem, "_orig_evaluate"):
             problem._orig_evaluate = problem._evaluate
-            problem._extra_constraints = None  # start with zero
+            problem._extra_constraints = None
 
             def _evaluate(self, x, out, *args, **kwargs):
-                # 1a) call the true original
                 self._orig_evaluate(x, out, *args, **kwargs)
 
                 if self._extra_constraints is not None:
                     G_base = out.get("G", None)
 
-                    if G_base is not None:
-                        G_base = np.asarray(G_base)
-
-                        if not self.elementwise and G_base.ndim == 1:
-                            G_base = G_base.reshape(-1, 1)
-
-                    if self.elementwise or G_base.ndim == 1:
+                    if self.elementwise:
                         G_extra = np.array([g(x) for g in self._extra_constraints])
                     else:
+                        if G_base.ndim == 1:
+                            G_base = G_base.reshape(-1, 1)
+
                         G_extra = np.column_stack([g(x) for g in self._extra_constraints])
+
 
                     if G_base is None:
                         out["G"] = G_extra
                     else:
                         axis = 0 if self.elementwise else 1
+
+                        print(G_base.shape)
+                        print(G_extra.shape)
+
                         out["G"] = np.concatenate([G_base, G_extra], axis=axis)
 
+            problem._evaluate = MethodType(_evaluate, problem)
 
             def add_constraints(self, constraints: List[Callable]):
                 """
@@ -63,7 +59,6 @@ class ProblemExtender():
                 self.n_ieq_constr = getattr(self, "n_ieq_constr", 0) + len(constraints)
 
 
-            problem._evaluate = MethodType(_evaluate, problem)
             problem.add_constraints = MethodType(add_constraints, problem)
 
 
