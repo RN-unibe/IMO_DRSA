@@ -100,69 +100,67 @@ class AutomatedDM(BaseDM):
 # ---------------------------------------------------------------------------------------------------------- #
 # Dummy DM (for unit tests)
 # ---------------------------------------------------------------------------------------------------------- #
-
 class DummyDM(BaseDM):
     def __init__(self):
-        BaseDM.__init__(self)
+        super().__init__()
         self.round = 0
-        self.score = 'simple'
+        self.score = 'pareto'
 
     def classify(self, T, association_rules):
         """
-
-        :param T:
-        :param association_rules:
-        :return: classification of the values in T with either 2 (good) or 1 (other)
+        :param T: numpy array of shape (n_samples, n_objectives)
+        :param association_rules: ignored in this simple strategy
+        :return: numpy array of 1's (other) and 2's (good)
         """
+        # Median-split on each objective, choose the split with the most balanced classes
+        T = np.asarray(T)
+        medians = np.median(T, axis=0)
+        n, m = T.shape
+        best_balance = n + 1
+        best_labels = np.ones(n, dtype=int)
 
-        random.seed(42)
-        n = len(T)
+        for i in range(m):
+            # smaller or equal values are "good" (2), others are "other" (1)
+            labels = np.where(T[:, i] <= medians[i], 2, 1)
+            balance = abs(np.sum(labels == 2) - np.sum(labels == 1))
 
-        return np.array([random.choice([1, 2]) for _ in range(n)])
+            if balance < best_balance:
+                best_balance = balance
+                best_labels = labels
 
+        return best_labels
 
     def select(self, rules):
-        if self.score == 'simple' :
+        if self.score == 'simple':
             return self.simple_score(rules)
 
-        elif self.score == 'pareto' :
+        elif self.score == 'pareto':
             return self.select_pareto(rules)
 
-
     def simple_score(self, rules, k=5, alpha=0.7):
-        """
-        Score each rule by alpha*confidence + (1-alpha)*support, then return the top k by that score.
-
-        :param rules:
-        :param k:
-        :param alpha:
-        :return:
-        """
         scored = [(alpha * r[3] + (1 - alpha) * r[2], r) for r in rules if r[4] == 'certain']
         scored.sort(reverse=True, key=lambda x: x[0])
 
         return [r for (_, r) in scored[:k]]
 
     def select_pareto(self, rules):
-        """
-        Return only those rules for which there is no other rule
-        with both higher support and higher confidence.
-        """
         certain = [r for r in rules if r[4] == 'certain']
         pareto = []
+
         for r in certain:
             s1, c1 = r[2], r[3]
             dominated = any((s2 >= s1 and c2 >= c1) and (s2 > s1 or c2 > c1)
                             for (_, _, s2, c2, _, _, _) in certain)
+
             if not dominated:
                 pareto.append(r)
+
         return pareto
 
-
     def is_satisfied(self, X, T, rules) -> bool:
-        if self.round == 1 :
+        if self.round == 3:
             return True
 
-        self.round = 1
+        self.round += 1
 
         return False

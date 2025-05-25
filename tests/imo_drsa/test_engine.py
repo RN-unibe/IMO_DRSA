@@ -66,7 +66,9 @@ class TestIMO_DRSAEngine(TestCase):
 
         engine = IMO_DRSAEngine().fit(problem=problem, objectives=objectives)
 
-        engine.solve(dm)
+        success = engine.solve(dm, True)
+
+        self.assertTrue(success)
 
 
 

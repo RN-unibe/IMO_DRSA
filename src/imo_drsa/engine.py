@@ -71,7 +71,7 @@ class IMO_DRSAEngine():
             pareto_front, pareto_set = self.get_pareto_front()
 
 
-            if pareto_front.size == 0:
+            if pareto_front is None or pareto_front.size == 0:
                 print("Infeasible constraints: please revise.")
                 return False
 
@@ -98,13 +98,13 @@ class IMO_DRSAEngine():
             # Generate new constraints from selected rules
             new_constraints = self.generate_constraints(selected)
 
-
             self.problem.add_constraints(new_constraints)
 
-            if visualise:
-                self.visualise()
+
             # Ask DM if current solutions are satisfactory
             if decision_maker.is_satisfied(pareto_front, pareto_set, rules):
+                if visualise:
+                    self.visualise()
                 return True
 
             iteration += 1
@@ -128,7 +128,7 @@ class IMO_DRSAEngine():
         """
         algorithm = NSGA2(pop_size=pop_size)
 
-        res = minimize(self.problem, algorithm, termination=('n_gen', n_gen), verbose=False)
+        res = minimize(self.problem, algorithm, termination=('n_gen', n_gen), verbose=True)
 
         pareto_front, pareto_set = res.X, res.F
 
@@ -151,10 +151,10 @@ class IMO_DRSAEngine():
             for idx, threshold in profile.items():
                 if direction == 'up': # f_i(x) >= threshold  ->  threshold - f_i(x) <= 0
                     if elementwise:
-
                         constraints.append(lambda x, i=idx, th=threshold: th - self.objectives[i](x))
                     else:
                         constraints.append(lambda X, i=idx, th=threshold: th - np.array([self.objectives[i](xi) for xi in X]))
+                    print(desc)
 
 
                 elif direction == 'down': # f_i(x) <= threshold  ->  f_i(x) - threshold <= 0
@@ -164,6 +164,6 @@ class IMO_DRSAEngine():
                         constraints.append(lambda X, i=idx, th=threshold: np.array([self.objectives[i](xi) for xi in X]) - th)
 
 
-                    print(desc)
+
 
         return constraints

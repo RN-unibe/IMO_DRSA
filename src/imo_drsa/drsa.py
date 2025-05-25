@@ -237,7 +237,7 @@ class DRSA:
         return (f"[{kind.upper()}] IF {premise} THEN {conclusion} (support={support:.2f}, confidence={confidence:.2f})")
 
     def induce_decision_rules(self, criteria:Tuple = None,
-                                direction: str = 'down',
+                                direction: str = 'up',
                                 threshold: int = 2,
                                 minimal: bool = True,
                                 robust: bool = True) -> List[Tuple]:

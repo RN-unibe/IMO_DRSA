@@ -40,11 +40,6 @@ class ProblemExtender():
                         out["G"] = G_extra
                     else:
                         axis = 0 if self.elementwise else 1
-
-                        print(G_base.shape)
-                        print(G_extra.shape)
-
-
                         out["G"] = np.concatenate([G_base, G_extra], axis=axis)
 
             problem._evaluate = MethodType(_evaluate, problem)
