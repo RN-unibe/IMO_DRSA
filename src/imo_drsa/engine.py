@@ -5,12 +5,11 @@ import numpy as np
 
 from typing import Callable, List, Dict, Tuple
 
+from matplotlib import pyplot as plt
 from pymoo.algorithms.moo.nsga2 import NSGA2
 from pymoo.core.problem import Problem
 from pymoo.optimize import minimize
 from pymoo.util.plotting import plot
-
-
 
 from src.imo_drsa.decision_maker import BaseDM
 from src.imo_drsa.drsa import DRSA
@@ -35,9 +34,9 @@ class IMO_DRSAEngine():
         self.drsa = DRSA()
         self.algorithm = algorithm(**kwargs)
         self.wrapper = ProblemExtender()
+        self.pareto_front = None
 
-
-    def fit(self, problem:Problem, objectives:List[Callable]=None):
+    def fit(self, problem: Problem, objectives: List[Callable] = None, verbose: bool = False):
         """
         Fit the IMO-DRSA solver.
 
@@ -46,12 +45,11 @@ class IMO_DRSAEngine():
         """
         self.problem = self.wrapper.enable_dynamic_constraints(problem=problem)
         self.objectives = objectives
+        self.pareto_front, self.pareto_set = self.get_pareto_front(verbose=verbose)
 
         return self
 
-
-
-    def solve(self, decision_maker: BaseDM, visualise: bool = False, max_iter: int = 5) -> bool:
+    def solve(self, decision_maker: BaseDM, visualise: bool = False, verbose: bool = False, max_iter: int = 5) -> bool:
         """
         Run the interactive optimization loop.
 
@@ -61,22 +59,15 @@ class IMO_DRSAEngine():
         :return: True if session finishes successfully; False otherwise.
         """
 
-
-        P_idx = [i for i in range(0, len(self.objectives))]
+        P_idx = tuple([i for i in range(0, len(self.objectives))])
         decision_attribute = None
+        pareto_front, pareto_set = self.pareto_front, self.pareto_set
 
         iteration: int = 0
         while iteration < max_iter:
-            # Compute Pareto front under current constraints
-            pareto_front, pareto_set = self.get_pareto_front()
-
-
-            if pareto_front is None or pareto_front.size == 0:
-                print("Infeasible constraints: please revise.")
-                return False
 
             if visualise:
-                self.visualise()
+                self.visualise2D(pareto_front, pareto_set)
 
             self.drsa.fit(pareto_set=pareto_set, criteria=P_idx, decision_attribute=decision_attribute)
 
@@ -88,36 +79,114 @@ class IMO_DRSAEngine():
 
             # Find a reduct and induce decision rules
             self.drsa.fit(pareto_set, P_idx, decisions)
-            P_idx = self.drsa.find_reducts()[0]
+            reducts = self.drsa.find_reducts()
 
-            rules = self.drsa.induce_decision_rules(P_idx)
+            #rint(self.drsa.core())
+            P_idx = reducts[0]
+            rules = self.drsa.induce_decision_rules(P_idx, minimal=False, robust=False)
 
             # DM selects preferred rules
             selected = decision_maker.select(rules)
+            # print(selected)
 
             # Generate new constraints from selected rules
             new_constraints = self.generate_constraints(selected)
 
             self.problem.add_constraints(new_constraints)
 
-
             # Ask DM if current solutions are satisfactory
             if decision_maker.is_satisfied(pareto_front, pareto_set, rules):
                 if visualise:
-                    self.visualise()
+                    self.visualise2D(pareto_front, pareto_set)
                 return True
+
+            # Compute Pareto front under current constraints
+            pareto_front, pareto_set = self.get_pareto_front(verbose=verbose)
+
+            if pareto_front is None or pareto_front.size == 0:
+                print("Infeasible constraints: please revise.")
+                return False
 
             iteration += 1
 
         return False
 
+    def visualise2D(self,new_pareto_front,
+                    new_pareto_set,
+                    all_kwargs=None,
+                    sub_kwargs=None,
+                    title_front=None,
+                    xlabel_front=None,
+                    ylabel_front=None,
+                    title_set=None,
+                    xlabel_set=None,
+                    ylabel_set=None,
+                    legend=True):
+        """
+        Plot both the Pareto front in decision space and the Pareto set in objective space,
+        showing the original (lightgrey) vs. the new subset (red).
 
-    def visualise(self) -> None:
-        plot(self.problem.pareto_front())
+        :param new_pareto_set: Current Pareto set (objectives), shape (n_points, 2).
+        :param new_pareto_front: Current Pareto front (decision vars), shape (n_points, 2).
+        :param all_kwargs: Style overrides for 'all points'.
+        :param sub_kwargs: Style overrides for the highlighted subset.
+        :param title_front: Title for the decision-variable plot.
+        :param xlabel_front: X-label for the decision-variable plot.
+        :param ylabel_front: Y-label for the decision-variable plot.
+        :param title_set: Title for the objective-space plot.
+        :param xlabel_set: X-label for the objective-space plot.
+        :param ylabel_set: Y-label for the objective-space plot.
+        :param legend: Whether to show legends.
+        """
 
+        all_kwargs = {} if all_kwargs is None else all_kwargs
+        sub_kwargs = {} if sub_kwargs is None else sub_kwargs
 
+        all_defaults = dict(color='lightgrey', marker='o', label='all points')
+        sub_defaults = dict(color='red', marker='x', s=100, label='subset')
 
-    def get_pareto_front(self, n_gen=200, pop_size=100) -> (np.ndarray, np.ndarray):
+        all_style = {**all_defaults, **all_kwargs}
+        sub_style = {**sub_defaults, **sub_kwargs}
+
+        if new_pareto_front is None:
+            new_pareto_front = self.pareto_front
+
+        fig, (ax_front, ax_set) = plt.subplots(1, 2, figsize=(12, 5))
+
+        # --- decision-space plot ---
+        front = np.asarray(self.pareto_front)
+        ax_front.scatter(front[:, 0], front[:, 1], **all_style)
+
+        new_front = np.asarray(new_pareto_front)
+        ax_front.scatter(new_front[:, 0], new_front[:, 1], **sub_style)
+
+        ax_front.set_title(title_front or "Pareto Front (decision vars)")
+        if xlabel_front:
+            ax_front.set_xlabel(xlabel_front)
+        if ylabel_front:
+            ax_front.set_ylabel(ylabel_front)
+        if legend:
+            ax_front.legend()
+
+        # --- objective-space plot ---
+        pset = np.asarray(self.pareto_set)
+        ax_set.scatter(pset[:, 0], pset[:, 1], **all_style)
+
+        new_pset = np.asarray(new_pareto_set)
+        ax_set.scatter(new_pset[:, 0], new_pset[:, 1], **sub_style)
+
+        ax_set.set_title(title_set or "Pareto Set (objectives)")
+        if xlabel_set:
+            ax_set.set_xlabel(xlabel_set)
+        if ylabel_set:
+            ax_set.set_ylabel(ylabel_set)
+        if legend:
+            ax_set.legend()
+
+        plt.tight_layout()
+        plt.show()
+
+    def get_pareto_front(self, n_gen=200, pop_size=100, verbose=False) -> (np.ndarray, np.ndarray):
         """
         Compute Pareto-optimal set using NSGA2 algorithm.
 
@@ -128,12 +197,11 @@ class IMO_DRSAEngine():
         """
         algorithm = NSGA2(pop_size=pop_size)
 
-        res = minimize(self.problem, algorithm, termination=('n_gen', n_gen), verbose=True)
+        res = minimize(self.problem, algorithm, termination=('n_gen', n_gen), verbose=verbose)
 
         pareto_front, pareto_set = res.X, res.F
 
         return pareto_front, pareto_set
-
 
     def generate_constraints(self, selected_rules, elementwise=None) -> List[Callable]:
         """
@@ -149,21 +217,20 @@ class IMO_DRSAEngine():
 
         for profile, _, _, _, _, direction, desc in selected_rules:
             for idx, threshold in profile.items():
-                if direction == 'up': # f_i(x) >= threshold  ->  threshold - f_i(x) <= 0
+                if direction == 'up':  # f_i(x) >= threshold  ->  threshold - f_i(x) <= 0
                     if elementwise:
                         constraints.append(lambda x, i=idx, th=threshold: th - self.objectives[i](x))
                     else:
-                        constraints.append(lambda X, i=idx, th=threshold: th - np.array([self.objectives[i](xi) for xi in X]))
+                        constraints.append(
+                            lambda X, i=idx, th=threshold: th - np.array([self.objectives[i](xi) for xi in X]))
                     print(desc)
 
 
-                elif direction == 'down': # f_i(x) <= threshold  ->  f_i(x) - threshold <= 0
+                elif direction == 'down':  # f_i(x) <= threshold  ->  f_i(x) - threshold <= 0
                     if elementwise:
                         constraints.append(lambda x, i=idx, th=threshold: self.objectives[i](x) - th)
                     else:
-                        constraints.append(lambda X, i=idx, th=threshold: np.array([self.objectives[i](xi) for xi in X]) - th)
-
-
-
+                        constraints.append(
+                            lambda X, i=idx, th=threshold: np.array([self.objectives[i](xi) for xi in X]) - th)
 
         return constraints

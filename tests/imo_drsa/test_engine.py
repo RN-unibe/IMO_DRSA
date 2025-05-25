@@ -49,7 +49,8 @@ class TestIMO_DRSAEngine(TestCase):
 
 
 
-    def test_solve(self):
+    def test_solve_bnh(self):
+        #Test if the solve function can terminate at all
         dm = DummyDM()
         problem = get_problem("bnh")
 
@@ -66,11 +67,45 @@ class TestIMO_DRSAEngine(TestCase):
 
         engine = IMO_DRSAEngine().fit(problem=problem, objectives=objectives)
 
-        success = engine.solve(dm, True)
+        success = engine.solve(dm, False, False)
 
         self.assertTrue(success)
 
+    def test_solve_osy(self):
+        #Test if the solve function can terminate at all
+        dm = DummyDM()
+        problem = get_problem("osy")
 
+        def f0(x):
+            """
+            First objective of the OSY problem:
+            f1(x) = -[25*(x1-2)^2 + (x2-2)^2 + (x3-1)^2 + (x4-4)^2 + (x5-1)^2]
+            """
+            x1, x2, x3, x4, x5, _ = x
+            return -(
+                    25 * (x1 - 2) ** 2 +
+                    (x2 - 2) ** 2 +
+                    (x3 - 1) ** 2 +
+                    (x4 - 4) ** 2 +
+                    (x5 - 1) ** 2
+            )
+
+        def f1(x):
+            """
+            Second objective of the OSY problem:
+            f2(x) = x1^2 + x2^2 + x3^2 + x4^2 + x5^2 + x6^2
+            """
+            return np.sum(np.asarray(x) ** 2)
+
+
+
+        objectives = [f0, f1]
+
+        engine = IMO_DRSAEngine().fit(problem=problem, objectives=objectives)
+
+        success = engine.solve(dm, False, False)
+
+        self.assertTrue(success)
 
 
 if __name__ == '__main__':

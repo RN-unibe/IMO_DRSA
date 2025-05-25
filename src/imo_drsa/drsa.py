@@ -177,9 +177,7 @@ class DRSA:
         reducts = []
 
         for r in range(1, len(self.criteria_full) + 1):
-
             for subset in combinations(self.criteria_full, r):
-
                 if self.quality(subset) == full_quality:
 
                     if not any(set(red).issubset(subset) for red in reducts):
@@ -274,11 +272,15 @@ class DRSA:
             for idx in indices:
                 profile = {i: self.pareto_set[idx, i] for i in crit}
                 mask = np.ones(self.N, dtype=bool)
+
                 for i, val in profile.items():
                     mask &= comp(self.pareto_set[:, i], val)
+
                 support = mask.mean()
                 confidence = conf_fn(mask)
+
                 desc = self.make_rule_description(profile, concl, support, confidence, kind, direction)
+
                 raw_rules.append((profile, concl, support, confidence, kind, direction, desc))
 
         # Filter robust: at least one base
@@ -289,10 +291,13 @@ class DRSA:
         if minimal:
             rules = raw_rules.copy()
             minimal_rules = []
+
             for r in rules:
                 if not any(self.subsumes(r2, r, direction) for r2 in rules if r2 != r):
                     minimal_rules.append(r)
+
             raw_rules = minimal_rules
+
 
         return raw_rules
 
@@ -308,18 +313,22 @@ class DRSA:
                 return False
             if direction == 'down' and p1[i] > p2[i]:
                 return False
+
         return True
 
     def is_robust(self, rule, direction = 'up'):
         profile, _, _, _, kind, _, _ = rule
         mask = np.ones(self.N, dtype=bool)
         cmp_op = operator.ge if direction == 'up' else operator.le
+
         for i, val in profile.items():
             mask &= cmp_op(self.pareto_set[:, i], val)
+
         # Base: exact match
         base_mask = np.ones(self.N, dtype=bool)
         for i, val in profile.items():
             base_mask &= self.pareto_set[:, i] == val
+
         return bool(np.any(base_mask & mask))
 
     # ---------------------------------------------------------------------------------------------------------- #

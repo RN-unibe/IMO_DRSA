@@ -33,7 +33,25 @@ class BaseDM:
     def set_decision_attribute(self, decision_attribute):
         self.decision_attribute = decision_attribute
 
+    def simple_score(self, rules, k=5, alpha=0.7):
+        scored = [(alpha * r[3] + (1 - alpha) * r[2], r) for r in rules if r[4] == 'certain']
+        scored.sort(reverse=True, key=lambda x: x[0])
 
+        return [r for (_, r) in scored[:k]]
+
+    def select_pareto(self, rules):
+        certain = [r for r in rules if r[4] == 'certain']
+        pareto = []
+
+        for r in certain:
+            s1, c1 = r[2], r[3]
+            dominated = any((s2 >= s1 and c2 >= c1) and (s2 > s1 or c2 > c1)
+                            for (_, _, s2, c2, _, _, _) in certain)
+
+            if not dominated:
+                pareto.append(r)
+
+        return pareto
 # ---------------------------------------------------------------------------------------------------------- #
 # Interactive DM
 # ---------------------------------------------------------------------------------------------------------- #
@@ -137,25 +155,7 @@ class DummyDM(BaseDM):
         elif self.score == 'pareto':
             return self.select_pareto(rules)
 
-    def simple_score(self, rules, k=5, alpha=0.7):
-        scored = [(alpha * r[3] + (1 - alpha) * r[2], r) for r in rules if r[4] == 'certain']
-        scored.sort(reverse=True, key=lambda x: x[0])
 
-        return [r for (_, r) in scored[:k]]
-
-    def select_pareto(self, rules):
-        certain = [r for r in rules if r[4] == 'certain']
-        pareto = []
-
-        for r in certain:
-            s1, c1 = r[2], r[3]
-            dominated = any((s2 >= s1 and c2 >= c1) and (s2 > s1 or c2 > c1)
-                            for (_, _, s2, c2, _, _, _) in certain)
-
-            if not dominated:
-                pareto.append(r)
-
-        return pareto
 
     def is_satisfied(self, X, T, rules) -> bool:
         if self.round == 3:
