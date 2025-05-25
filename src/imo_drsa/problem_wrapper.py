@@ -19,15 +19,16 @@ class ProblemWrapper(Problem):
 
         # total constraints = whatever the base had + our extras
         n_ieq_constr = getattr(base_problem, "n_ieq_constr", 0)
+        n_constr = getattr(base_problem, "n_constr", 0)
 
-        if constraints is None:
-            constraints = []
+        if constraints is not None:
+            n_ieq_constr = n_ieq_constr + len(constraints)
+            n_constr = n_constr + len(constraints)
 
-        n_ieq_constr = n_ieq_constr + len(constraints)
 
         super().__init__(n_var=base_problem.n_var,
                          n_obj=base_problem.n_obj,
-                         n_constr=getattr(base_problem, "n_constr", 0),
+                         n_constr=n_constr,
                          n_ieq_constr=n_ieq_constr,
                          xl=base_problem.xl,
                          xu=base_problem.xu,
@@ -43,23 +44,26 @@ class ProblemWrapper(Problem):
 
         if self.constraints is not None:
             G_base = out.get("G", None)
-            if G_base is None:
-                n = 1 if self.elementwise else x.shape[0]
-                G_base = np.zeros((n, 0), float)
-            else:
+            if G_base is not None:
                 G_base = np.asarray(G_base)
-                if self.elementwise:
-                    G_base = G_base.reshape(1, -1)
+
+                if not self.elementwise and  G_base.ndim == 1:
+                    G_base = G_base.reshape(-1, 1)
 
             if self.elementwise:
-                vals = [g(x) for g in self.constraints]
-                G_extra = np.atleast_2d(vals)
-
+                extra = np.array([g(x) for g in self.constraints])
+                G_extra = extra
             else:
-                G_extra = np.column_stack([g(x) for g in self.constraints])
+                g_extra = [g(x) for g in self.constraints]
+                G_extra = np.column_stack(g_extra)
 
-
-            out["G"] = np.concatenate([G_base, G_extra], axis=1)
+            if G_base is None:
+                out["G"] = G_extra
+            else:
+                if self.elementwise:
+                    out["G"] = np.concatenate([G_base, G_extra], axis=0)
+                else:
+                    out["G"] = np.concatenate([G_base, G_extra], axis=1)
 
 
     def set_constraints(self, constraints:List[Callable]):
@@ -109,12 +113,46 @@ class DummyBatchProblem(Problem):
 
     def _evaluate(self, x, out, *args, **kwargs):
         out["F"] = x.sum(axis=1)
-
         out["G"] = x[:, 0] - x[:, 1]
 
 
+# ---------------------------------------------------------------------------------------------------------- #
+# Settable Dummy Problem
+# ---------------------------------------------------------------------------------------------------------- #
+class DynamicDummyBatchProblem(Problem):
+    """
+    To directly set specific objectives and constraints in the test.
+    """
+    def __init__(self, F, H=None, G=None,
+                 n_var=2,
+                 n_obj=1,
+                 n_ieq_constr=0,
+                 n_eq_constr=0,
+                 xl=np.array([0.0, 0.0]),
+                 xu=np.array([1.0, 1.0])):
 
 
+        super().__init__(n_var=n_var,
+                        n_obj=n_obj,
+                        n_constr=n_ieq_constr + n_eq_constr,
+                        n_ieq_constr=n_ieq_constr,
+                        n_eq_constr=n_eq_constr,
+                        xl=xl,
+                        xu=xu,
+                        elementwise=False)
+
+        self.F = F
+        self.H = H
+        self.G = G
+
+    def _evaluate(self, x, out, *args, **kwargs):
+        out["F"] = self.F
+
+        if self.H is not None:
+            out["H"] = self.H
+
+        if self.G is not None:
+            out["G"] = self.G
 
 
 
