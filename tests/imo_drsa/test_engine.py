@@ -16,6 +16,7 @@ class TestIMO_DRSAEngine(TestCase):
         prob = get_problem("bnh")
 
         engine = IMO_DRSAEngine().fit(prob)
+        #engine.problem.add_constraints()
         engine.get_pareto_front(n_gen=5) # just to see if it works
 
         #engine.visualise()
@@ -35,7 +36,7 @@ class TestIMO_DRSAEngine(TestCase):
 
         model.objectives = [make_F(i) for i in range(2)]
 
-        dr = model.generate_constraints(rules)
+        dr = model.generate_constraints(rules, elementwise=True)
 
         x = [1, 2]
         # Both constraints from the first rule should be zero at x

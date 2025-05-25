@@ -1,6 +1,9 @@
+import inspect
 import random
 
 import numpy as np
+from contourpy.util.data import simple
+from matplotlib.pyplot import inferno
 
 from .drsa import DRSA
 
@@ -102,6 +105,7 @@ class DummyDM(BaseDM):
     def __init__(self):
         BaseDM.__init__(self)
         self.round = 0
+        self.score = 'simple'
 
     def classify(self, T, association_rules):
         """
@@ -118,19 +122,41 @@ class DummyDM(BaseDM):
 
 
     def select(self, rules):
+        if self.score == 'simple' :
+            return self.simple_score(rules)
+
+        elif self.score == 'pareto' :
+            return self.select_pareto(rules)
+
+
+    def simple_score(self, rules, k=5, alpha=0.7):
         """
-        For now, just only select the 'certain' rules.
+        Score each rule by alpha*confidence + (1-alpha)*support, then return the top k by that score.
 
         :param rules:
+        :param k:
+        :param alpha:
         :return:
         """
-        chosen = []
+        scored = [(alpha * r[3] + (1 - alpha) * r[2], r) for r in rules if r[4] == 'certain']
+        scored.sort(reverse=True, key=lambda x: x[0])
 
-        for rule in rules:
-            if rule[4] == 'certain':
-                chosen.append(rule)
+        return [r for (_, r) in scored[:k]]
 
-        return chosen
+    def select_pareto(self, rules):
+        """
+        Return only those rules for which there is no other rule
+        with both higher support and higher confidence.
+        """
+        certain = [r for r in rules if r[4] == 'certain']
+        pareto = []
+        for r in certain:
+            s1, c1 = r[2], r[3]
+            dominated = any((s2 >= s1 and c2 >= c1) and (s2 > s1 or c2 > c1)
+                            for (_, _, s2, c2, _, _, _) in certain)
+            if not dominated:
+                pareto.append(r)
+        return pareto
 
 
     def is_satisfied(self, X, T, rules) -> bool:

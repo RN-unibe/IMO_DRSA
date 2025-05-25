@@ -22,9 +22,9 @@ class DRSA:
     :param m: Number of decision classes.
     """
 
-    def __init__(self, pareto_set:np.ndarray=None,
-                 decision_attribute:np.ndarray=None,
-                 criteria:Tuple=None):
+    def __init__(self, pareto_set: np.ndarray = None,
+                 decision_attribute: np.ndarray = None,
+                 criteria: Tuple = None):
         """
         :param pareto_set: NumPy array with shape (N, n_var), each row is an object, columns are criteria evaluated on that object
         :param decision_attribute: NumPy array of length N, integer‐encoded decision classes (1, ..., m)
@@ -32,7 +32,6 @@ class DRSA:
         """
         if pareto_set is not None and decision_attribute is not None and criteria is not None:
             self.fit(pareto_set, criteria, decision_attribute)
-
 
     def fit(self, pareto_set: np.ndarray, criteria: Tuple, decision_attribute: np.ndarray = None) -> None:
         """
@@ -191,6 +190,20 @@ class DRSA:
 
         return reducts
 
+    def core(self) -> Tuple:
+        """Compute core criteria as intersecti
+        on of all reducts."""
+        reducts = self.find_reducts()
+        if not reducts:
+            return ()
+
+        core_set = set(reducts[0])
+
+        for red in reducts[1:]:
+            core_set &= set(red)
+
+        return tuple(sorted(core_set))
+
     # ---------------------------------------------------------------------------------------------------------- #
     # Decision-rule induction
     # ---------------------------------------------------------------------------------------------------------- #
@@ -223,9 +236,11 @@ class DRSA:
 
         return (f"[{kind.upper()}] IF {premise} THEN {conclusion} (support={support:.2f}, confidence={confidence:.2f})")
 
-    def induce_decision_rules(self, criteria: Tuple = None,
-                              direction: str = 'down',
-                              threshold: int = 2) -> List:
+    def induce_decision_rules(self, criteria:Tuple = None,
+                                direction: str = 'down',
+                                threshold: int = 2,
+                                minimal: bool = True,
+                                robust: bool = True) -> List[Tuple]:
         """
         Induce certain and possible decision rules for Cl>=threshold or Cl<=threshold.
         direction: 'up' or 'down'.
@@ -237,42 +252,111 @@ class DRSA:
         :return: list of induced decision rules of form (profile, concl, support, confidence, kind, direction, desc)
         """
         crit = criteria or self.criteria_full
+        if direction not in ('up', 'down'):
+            raise ValueError("direction must be 'up' or 'down'")
 
+        # Select appropriate approximations
         if direction == 'up':
             lower = self.lower_approx_up(crit, threshold)
             upper = self.upper_approx_up(crit, threshold)
             comp = operator.ge
             conf_fn = lambda mask: (self.decision_attribute[mask] >= threshold).mean()
             concl = f"d >= {threshold}"
-
-        elif direction == 'down':
+        else:
             lower = self.lower_approx_down(crit, threshold)
             upper = self.upper_approx_down(crit, threshold)
             comp = operator.le
             conf_fn = lambda mask: (self.decision_attribute[mask] <= threshold).mean()
             concl = f"d <= {threshold}"
 
-        else:
-            raise ValueError("direction must be either 'up' or 'down'")
-
-        rules = []
+        raw_rules = []
         for kind, indices in [('certain', np.where(lower)[0]), ('possible', np.where(upper & ~lower)[0])]:
-
             for idx in indices:
                 profile = {i: self.pareto_set[idx, i] for i in crit}
                 mask = np.ones(self.N, dtype=bool)
-
                 for i, val in profile.items():
                     mask &= comp(self.pareto_set[:, i], val)
-
                 support = mask.mean()
                 confidence = conf_fn(mask)
-
                 desc = self.make_rule_description(profile, concl, support, confidence, kind, direction)
+                raw_rules.append((profile, concl, support, confidence, kind, direction, desc))
 
-                rules.append((profile, concl, support, confidence, kind, direction, desc))
+        # Filter robust: at least one base
+        if robust:
+            raw_rules = [r for r in raw_rules if self.is_robust(r, direction)]
 
-        return rules
+        # Filter minimal: no weaker rule subsumes it
+        if minimal:
+            rules = raw_rules.copy()
+            minimal_rules = []
+            for r in rules:
+                if not any(self.subsumes(r2, r, direction) for r2 in rules if r2 != r):
+                    minimal_rules.append(r)
+            raw_rules = minimal_rules
+
+        return raw_rules
+
+    @staticmethod
+    def subsumes(r1, r2, direction = 'up'):
+        p1, _, _, _, _, _, _ = r1
+        p2, _, _, _, _, _, _ = r2
+        # r1 subsumes r2 if p1 is weaker (i.e., thresholds for >= lower, <= higher)
+        for i in p1:
+            if i not in p2:
+                return False
+            if direction == 'up' and p1[i] < p2[i]:
+                return False
+            if direction == 'down' and p1[i] > p2[i]:
+                return False
+        return True
+
+    def is_robust(self, rule, direction = 'up'):
+        profile, _, _, _, kind, _, _ = rule
+        mask = np.ones(self.N, dtype=bool)
+        cmp_op = operator.ge if direction == 'up' else operator.le
+        for i, val in profile.items():
+            mask &= cmp_op(self.pareto_set[:, i], val)
+        # Base: exact match
+        base_mask = np.ones(self.N, dtype=bool)
+        for i, val in profile.items():
+            base_mask &= self.pareto_set[:, i] == val
+        return bool(np.any(base_mask & mask))
+
+    # ---------------------------------------------------------------------------------------------------------- #
+    # Write the rules as strings
+    # ---------------------------------------------------------------------------------------------------------- #
+    @staticmethod
+    def explain_rules(rules: List, verbose: bool = True) -> List:
+        """
+        Convert decision or association rules to human-readable strings.
+
+        :param rules: decision or association rules
+        :param verbose: bool print the explanation if True, not if False
+
+        :return: list of strings describing the rules
+        """
+        explanations = []
+
+        for rule in rules:
+            if len(rule) == 7:  # decision rule
+                desc = rule[6]
+                explanations.append(desc)
+
+                if verbose:
+                    print(desc)
+
+            elif isinstance(rule, dict):  # association rule
+                desc = f"if {rule['if']} then {rule['then']}  "
+                desc += f"(support={rule['support']:.2f}, confidence={rule['confidence']:.2f})"
+                explanations.append(desc)
+
+                if verbose:
+                    print(desc)
+
+            else:
+                raise ValueError(f"Unknown rule format: {rule!r}")
+
+        return explanations
 
     # ---------------------------------------------------------------------------------------------------------- #
     # Association-rule mining
@@ -347,70 +431,33 @@ class DRSA:
         """
         rules = {}
 
+        for i, j in combinations(criteria, 2):
+            r_ij = self.find_single_rule(pareto_set[:, i], pareto_set[:, j], min_support, min_confidence)
 
-        for i, j in combinations(criteria, 2) :
-                r_ij = self.find_single_rule(pareto_set[:, i], pareto_set[:, j], min_support, min_confidence)
+            if bidirectional:
+                r_ji = self.find_single_rule(pareto_set[:, j], pareto_set[:, i], min_support, min_confidence)
 
-                if bidirectional:
-                    r_ji = self.find_single_rule(pareto_set[:, j], pareto_set[:, i], min_support, min_confidence)
-
-                    if r_ij and r_ji:
-                        chosen = r_ij if r_ij['confidence'] >= r_ji['confidence'] else r_ji
-
-                    else:
-                        chosen = r_ij or r_ji
-
-                    if chosen:
-                        if chosen is r_ji:
-                            chosen['if'] = chosen['if'].replace('x', f'f_{j}(x)')
-                            chosen['then'] = chosen['then'].replace('y', f'f_{i}(x)')
-                            rules[(j, i)] = chosen
-
-                        else:
-                            chosen['if'] = chosen['if'].replace('x', f'f_{i}(x)')
-                            chosen['then'] = chosen['then'].replace('y', f'f_{j}(x)')
-                            rules[(i, j)] = chosen
-
-                    else:
-                        rules[(i, j)] = None
+                if r_ij and r_ji:
+                    chosen = r_ij if r_ij['confidence'] >= r_ji['confidence'] else r_ji
 
                 else:
-                    rules[(i, j)] = r_ij
+                    chosen = r_ij or r_ji
 
-        return rules
+                if chosen:
+                    if chosen is r_ji:
+                        chosen['if'] = chosen['if'].replace('x', f'f_{j}(x)')
+                        chosen['then'] = chosen['then'].replace('y', f'f_{i}(x)')
+                        rules[(j, i)] = chosen
 
-    # ---------------------------------------------------------------------------------------------------------- #
-    # Write the rules as strings
-    # ---------------------------------------------------------------------------------------------------------- #
-    @staticmethod
-    def explain_rules(rules: List, verbose: bool = True) -> List:
-        """
-        Convert decision or association rules to human-readable strings.
+                    else:
+                        chosen['if'] = chosen['if'].replace('x', f'f_{i}(x)')
+                        chosen['then'] = chosen['then'].replace('y', f'f_{j}(x)')
+                        rules[(i, j)] = chosen
 
-        :param rules: decision or association rules
-        :param verbose: bool print the explanation if True, not if False
-
-        :return: list of strings describing the rules
-        """
-        explanations = []
-
-        for rule in rules:
-            if len(rule) == 7:  # decision rule
-                desc = rule[6]
-                explanations.append(desc)
-
-                if verbose:
-                    print(desc)
-
-            elif isinstance(rule, dict):  # association rule
-                desc = f"if {rule['if']} then {rule['then']}  "
-                desc += f"(support={rule['support']:.2f}, confidence={rule['confidence']:.2f})"
-                explanations.append(desc)
-
-                if verbose:
-                    print(desc)
+                else:
+                    rules[(i, j)] = None
 
             else:
-                raise ValueError(f"Unknown rule format: {rule!r}")
+                rules[(i, j)] = r_ij
 
-        return explanations
+        return rules

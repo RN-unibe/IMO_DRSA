@@ -22,16 +22,18 @@ class ProblemExtender():
             def _evaluate(self, x, out, *args, **kwargs):
                 self._orig_evaluate(x, out, *args, **kwargs)
 
+
                 if self._extra_constraints is not None:
                     G_base = out.get("G", None)
 
                     if self.elementwise:
                         G_extra = np.array([g(x) for g in self._extra_constraints])
+
                     else:
+                        G_extra = np.column_stack([g(x) for g in self._extra_constraints])
+
                         if G_base.ndim == 1:
                             G_base = G_base.reshape(-1, 1)
-
-                        G_extra = np.column_stack([g(x) for g in self._extra_constraints])
 
 
                     if G_base is None:
@@ -41,6 +43,7 @@ class ProblemExtender():
 
                         print(G_base.shape)
                         print(G_extra.shape)
+
 
                         out["G"] = np.concatenate([G_base, G_extra], axis=axis)
 

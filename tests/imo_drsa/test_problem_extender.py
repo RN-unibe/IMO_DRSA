@@ -2,6 +2,8 @@ import unittest
 from unittest import TestCase
 
 import numpy as np
+from pymoo.algorithms.moo.nsga2 import NSGA2
+from pymoo.optimize import minimize
 from pymoo.problems import get_problem
 
 from src.imo_drsa.problem_extender import ProblemExtender, DummyElementwiseProblem, DummyBatchProblem, \
@@ -14,6 +16,7 @@ class TestBasicProblemExtender(TestCase):
     # Elementwise Problem
     # ---------------------------------------------------------------------------------------------------------- #
     def test_elementwise_no_extra_constraints(self):
+        # Just enabling dynamic constraints should not change the output (without constraints)
         base = DummyElementwiseProblem()
         wrapper = ProblemExtender.enable_dynamic_constraints(base)
 
@@ -27,6 +30,8 @@ class TestBasicProblemExtender(TestCase):
         self.assertListEqual(w_res.tolist(), b_res.tolist())
 
     def test_elementwise_extra_constraints(self):
+        # Just enabling dynamic constraints should not change the output (with constraints)
+
         def g0(x):
             return x.sum()
 
@@ -55,6 +60,8 @@ class TestBasicProblemExtender(TestCase):
     # Batch Problem
     # ---------------------------------------------------------------------------------------------------------- #
     def test_batch_no_extra_constraints(self):
+        # Just enabling dynamic constraints should not change the output (without constraints)
+
         base = DummyBatchProblem()
         wrapper = ProblemExtender.enable_dynamic_constraints(base)
 
@@ -73,6 +80,8 @@ class TestBasicProblemExtender(TestCase):
         self.assertListEqual(w_res[1].tolist(), d_res[1].tolist())
 
     def test_batch_extra_constraints(self):
+        # Just enabling dynamic constraints should not change the output (with constraints)
+
         def g0(X):
             return X[:, 0] - X[:, 1]
 
@@ -101,7 +110,12 @@ class TestBasicProblemExtender(TestCase):
         self.assertListEqual(w_res[1].tolist(), d_res[1].tolist())
 
 
-class TestProblemExtenderBNH(unittest.TestCase):
+
+# ---------------------------------------------------------------------------------------------------------- #
+# Test with actual Test Problem from pymoo
+# ---------------------------------------------------------------------------------------------------------- #
+
+class TestProblemExtenderBNH(TestCase):
 
     def setUp(self):
         # Load the BNH test problem (2 vars, 2 objectives, 2 constraints)
@@ -188,6 +202,22 @@ class TestProblemExtenderBNH(unittest.TestCase):
         # After enabling, add_constraints should be available
         self.assertTrue(hasattr(self.ext_problem, "add_constraints"))
         self.assertTrue(callable(self.ext_problem.add_constraints))
+
+
+    def test_optimisation_with_additional_constraints(self):
+        # Adding new constraints should not break minimize
+        algorithm = NSGA2(pop_size=10)
+
+        def g1(x):
+            return x[:, 0] - 0.2
+
+        res_prev = minimize(self.problem, algorithm, termination=('n_gen', 10), verbose=False)
+
+        self.problem.add_constraints([g1])
+        res_post = minimize(self.problem, algorithm, termination=('n_gen', 10), verbose=False)
+
+        self.assertEqual(res_prev.G.shape[0], res_post.G.shape[0])
+        self.assertNotEqual(res_prev.G.shape[1], res_post.G.shape[1])
 
 
 

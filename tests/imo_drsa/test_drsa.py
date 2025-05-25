@@ -191,9 +191,9 @@ class TestDRSA1D(unittest.TestCase):
         reducts = self.drsa.find_reducts()
         self.assertEqual(reducts, [(0,)])
 
-    def test_induce_decision_rules(self):
+    def test_induce_decision_rules_not_minimal_or_robust(self):
         # Threshold 2 for 'up' direction
-        rules = self.drsa.induce_decision_rules(criteria=self.criteria, direction='up', threshold=2)
+        rules = self.drsa.induce_decision_rules(criteria=self.criteria, direction='up', threshold=2, minimal=False, robust=False)
         # Expect certain rules for indices 1 and 2, i.e. at least one rule with profile 0:2
         self.assertTrue(any(rule[0].get(0) == 2 for rule in rules if rule[4] == 'certain'))
 

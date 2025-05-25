@@ -1,6 +1,9 @@
+import inspect
+from itertools import combinations
+
 import numpy as np
 
-from typing import Callable, List
+from typing import Callable, List, Dict, Tuple
 
 from pymoo.algorithms.moo.nsga2 import NSGA2
 from pymoo.core.problem import Problem
@@ -94,6 +97,8 @@ class IMO_DRSAEngine():
 
             # Generate new constraints from selected rules
             new_constraints = self.generate_constraints(selected)
+
+
             self.problem.add_constraints(new_constraints)
 
             if visualise:
@@ -101,8 +106,6 @@ class IMO_DRSAEngine():
             # Ask DM if current solutions are satisfactory
             if decision_maker.is_satisfied(pareto_front, pareto_set, rules):
                 return True
-
-
 
             iteration += 1
 
@@ -114,29 +117,25 @@ class IMO_DRSAEngine():
 
 
 
-    def get_pareto_front(self, n_gen=200) -> (np.ndarray, np.ndarray):
+    def get_pareto_front(self, n_gen=200, pop_size=100) -> (np.ndarray, np.ndarray):
         """
         Compute Pareto-optimal set using NSGA2 algorithm.
 
-        :param universe: Bounds of initial population.
-        :param objectives: Objective functions.
-        :param constraints: Inequality constraints g(x) <= 0.
         :param pop_size: Population size for NSGA2.
         :param n_gen: Number of generations.
 
         :return: Tuple of decision variables (pareto_front) and objective values of Pareto front (pareto_set).
         """
-        algorithm = NSGA2(pop_size=100)
+        algorithm = NSGA2(pop_size=pop_size)
 
         res = minimize(self.problem, algorithm, termination=('n_gen', n_gen), verbose=False)
-
 
         pareto_front, pareto_set = res.X, res.F
 
         return pareto_front, pareto_set
 
 
-    def generate_constraints(self, selected_rules) -> List[Callable]:
+    def generate_constraints(self, selected_rules, elementwise=None) -> List[Callable]:
         """
         Translate selected decision rules into inequality constraints g(x) <= 0.
 
@@ -145,14 +144,26 @@ class IMO_DRSAEngine():
         """
         constraints = []
 
-        for profile, _, _, _, _, direction, _ in selected_rules:
-            for idx, threshold in profile.items():
-                if direction == 'up':
-                    # f_i(x) >= threshold  ->  threshold - f_i(x) <= 0
-                    constraints.append(lambda x, i=idx, th=threshold: th - self.objectives[i](x))
+        if elementwise is None:
+            elementwise = self.problem.elementwise
 
-                else:
-                    # f_i(x) <= threshold  ->  f_i(x) - threshold <= 0
-                    constraints.append(lambda x, i=idx, th=threshold: self.objectives[i](x) - th)
+        for profile, _, _, _, _, direction, desc in selected_rules:
+            for idx, threshold in profile.items():
+                if direction == 'up': # f_i(x) >= threshold  ->  threshold - f_i(x) <= 0
+                    if elementwise:
+
+                        constraints.append(lambda x, i=idx, th=threshold: th - self.objectives[i](x))
+                    else:
+                        constraints.append(lambda X, i=idx, th=threshold: th - np.array([self.objectives[i](xi) for xi in X]))
+
+
+                elif direction == 'down': # f_i(x) <= threshold  ->  f_i(x) - threshold <= 0
+                    if elementwise:
+                        constraints.append(lambda x, i=idx, th=threshold: self.objectives[i](x) - th)
+                    else:
+                        constraints.append(lambda X, i=idx, th=threshold: np.array([self.objectives[i](xi) for xi in X]) - th)
+
+
+                    print(desc)
 
         return constraints
