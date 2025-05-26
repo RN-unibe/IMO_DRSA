@@ -1,4 +1,4 @@
-from typing import Callable, List, Optional
+from typing import Callable, List
 from types import MethodType
 
 import numpy as np
@@ -22,7 +22,6 @@ class ProblemExtender():
             def _evaluate(self, x, out, *args, **kwargs):
                 self._orig_evaluate(x, out, *args, **kwargs)
 
-
                 if self._extra_constraints is not None:
                     G_base = out.get("G", None)
 
@@ -34,7 +33,6 @@ class ProblemExtender():
 
                         if G_base is not None and G_base.ndim == 1:
                             G_base = G_base.reshape(-1, 1)
-
 
                     if G_base is None:
                         out["G"] = G_extra
@@ -56,11 +54,10 @@ class ProblemExtender():
                 self._extra_constraints.extend(constraints)
                 self.n_ieq_constr = getattr(self, "n_ieq_constr", 0) + len(constraints)
 
-
             problem.add_constraints = MethodType(add_constraints, problem)
 
-
         return problem
+
 
 # ---------------------------------------------------------------------------------------------------------- #
 # Dummy base-problems for testing

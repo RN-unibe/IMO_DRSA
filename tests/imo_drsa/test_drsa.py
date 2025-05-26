@@ -58,8 +58,6 @@ class TestDRSA(TestCase):
         # Only the full set of criteria is a minimal reduct here
         self.assertEqual(reducts, [(0, 1)])
 
-
-
     def test_general(self):
         # Validate pipeline end-to-end
         T = np.array([[5, 7],
@@ -144,7 +142,8 @@ class TestDRSA1D(unittest.TestCase):
 
     def test_induce_decision_rules_not_minimal_or_robust(self):
         # Threshold 2 for 'up' direction
-        rules = self.drsa.induce_decision_rules(criteria=self.criteria, direction='up', threshold=2, minimal=False, robust=False)
+        rules = self.drsa.induce_decision_rules(criteria=self.criteria, direction='up', threshold=2, minimal=False,
+                                                robust=False)
         # Expect certain rules for indices 1 and 2, i.e. at least one rule with profile 0:2
         self.assertTrue(any(rule[0].get(0) == 2 for rule in rules if rule[4] == 'certain'))
 
@@ -169,7 +168,8 @@ class TestDecisionRuleFormatting(unittest.TestCase):
 class TestAssociationRules(unittest.TestCase):
 
     def test_induce_association_rules_default(self):
-        drsa = DRSA().fit(pareto_set=np.array([[1, 1], [2, 2], [3, 3]]), criteria=(0, 1), decision_attribute=np.array([1, 2, 3]))
+        drsa = DRSA().fit(pareto_set=np.array([[1, 1], [2, 2], [3, 3]]), criteria=(0, 1),
+                          decision_attribute=np.array([1, 2, 3]))
 
         rules = drsa.find_association_rules(criteria=(0, 1), min_support=0.1, min_confidence=0.1)
         # Should return a list of rule tuples
@@ -215,11 +215,10 @@ class TestAssociationRules(unittest.TestCase):
 
         # We expect exactly three directed pairs:
         #   0→2, 2→0 and 1→2
-        expected_relations = {'0->1', '1->0', '2->1','0->2', '2->0', '1->2'}
+        expected_relations = {'0->1', '1->0', '2->1', '0->2', '2->0', '1->2'}
         found_relations = {rule[5] for rule in rules}  # rule[5] is the 'relation' field
 
         print(found_relations)
-        
 
         self.assertEqual(expected_relations, found_relations)
 
@@ -232,8 +231,6 @@ class TestAssociationRules(unittest.TestCase):
             self.assertIn("support=", desc)
             self.assertIn("confidence=", desc)
 
-
-
     def test_explain_association_rule_tuple(self):
         desc = "[ASSOC] IF f_0 >= 1 THEN f_1 >= 2 (support=0.20, confidence=0.30)"
         rule = ({0: 1}, {1: 2}, 0.2, 0.3, 'ASSOC', '->', desc)
@@ -244,6 +241,7 @@ class TestAssociationRules(unittest.TestCase):
         # Passing a non-sequence should raise TypeError
         with self.assertRaises(TypeError):
             DRSA.explain_rules([42], verbose=False)
+
 
 if __name__ == '__main__':
     unittest.main()

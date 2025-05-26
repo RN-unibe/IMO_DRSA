@@ -1,53 +1,67 @@
-# Interactive Optimisation Process using DRSA (IMO-DRSA)
-A Python implementation of the IMO-DRSA framework, consisting of an iterative cycle of two main stages:
+# Interactive Multi-Objective Optimisation with DRSA (IMO-DRSA)
 
-## A. Optimisation Stage
-Generate a sample from the current approximation of the Pareto optimal set.
+A Python implementation of the Interactive Multi-Objective Optimisation framework using the Dominance-Based Rough Set Approach (IMO-DRSA). 
+This interactive and iterative optimisation process integrates human decision-making preferences via DRSA rule induction, continually refining the Pareto-optimal solutions.
 
-## B. Dialogue Stage
-- The DM evaluates the sample and selects "good" solutions.
+## Overview
 
-- DRSA is applied to infer decision rules distinguishing "good" from "others."
+### Framework Components
 
-- These rules are logical constraints used to narrow the search space.
+- **IMO-DRSA Engine** (`engine.py`):
+  - Manages iterative optimisation loops (using NSGA-II to calculate Pareto fronts).
+  - Visualises Pareto fronts and objective spaces interactively.
+  - Generates new constraints dynamically based on decision-maker selections.
 
-- The process repeats with a refined Pareto sample until a satisfactory solution is found.
+
+- **Dominance-Based Rough Set Approach (DRSA)** (`drsa.py`):
+  - Induces decision rules distinguishing preferred solutions ('good') from non-preferred ones.
+  - Computes positive/negative cones, rough approximations, and quality metrics.
+  - Supports association rule mining for enhanced decision-context understanding.
 
 
-## Step-by-step Overview:
-1. Optimise: get Pareto front
+- **Decision Makers** (`decision_maker.py`):
+  - **InteractiveDM**: Integrates human input to classify Pareto samples and select DRSA rules.
+  - **AutomatedDM**: Automatically classifies, selects rules, and checks convergence criteria.
+  - **DummyDM**: Provides trivial decision-making logic for unit tests.
 
-2. Ask DM to sort into "good" / "other"
 
-3. Use DRSA:
-   - Compute approximations
-   - Drive rules 
-   - Pick best ones (maybe with DM support)
+- **Problem Extender** (`problem_extender.py`):
+  - Dynamically adds inequality constraints to pymoo optimisation problems.
+  - Compatible with both elementwise and batch evaluations.
 
-4. Generate new constraints
 
-5. Feed constraints to DRSAProblem
+## Iterative Optimisation Cycle
 
-6. Repeat
+1. **Optimisation Stage**: Generate a Pareto-optimal solution set (via NSGA-II).
+2. **Dialogue Stage**:
+   - Decision-maker classifies solutions ('good'/'other').
+   - DRSA infers decision rules based on classified solutions.
+   - Decision-maker selects the most relevant rules.
+   - Rules become constraints to refine the Pareto search space.
 
-# Setup
-Just run 'setup.sh' for MacOS or Linux, and 'setup.ps1' for Windows.
+The cycle continues until a satisfactory solution set emerges or convergence criteria are met.
 
-## Sources:
 
-- Branke, J., Deb, K., Miettinen, K., & Słowiński, R. (Eds.). (2008). Multiobjective optimization: Interactive and evolutionary approaches (Vol. 5252). Springer. https://doi.org/10.1007/978-3-540-88908-3
-- Dominance-based Rough Set Approach (DRSA): https://en.wikipedia.org/wiki/Dominance-based_rough_set_approach
-- Rough Set Theory: https://en.wikipedia.org/wiki/Rough_set
-- Multi-Criteria Decision Analysis (MCDA): https://en.wikipedia.org/wiki/Multi-criteria_decision_analysis
-- pymoo (https://pymoo.org/)
+## Setup
+Run `setup.sh` on MacOS/Linux or `setup.ps1` on Windows.
 
+## Key Files
+
+- `engine.py`: Core iterative engine for IMO-DRSA.
+- `drsa.py`: DRSA computations and rule induction methods.
+- `decision_maker.py`: Decision-maker interfaces and implementations.
+- `problem_extender.py`: Utility to dynamically modify pymoo problems.
+
+## Sources
+
+- Branke, J., Deb, K., Miettinen, K., & Słowiński, R. (2008). *Multiobjective optimisation: Interactive and evolutionary approaches*. Springer. [Link](https://doi.org/10.1007/978-3-540-88908-3)
+- [Dominance-based Rough Set Approach (DRSA)](https://en.wikipedia.org/wiki/Dominance-based_rough_set_approach)
+- [Rough Set Theory](https://en.wikipedia.org/wiki/Rough_set)
+- [Multi-Criteria Decision Analysis (MCDA)](https://en.wikipedia.org/wiki/Multi-criteria_decision_analysis)
+- [pymoo Optimisation Library](https://pymoo.org/)
 
 ## License
 
-This project uses the following third-party packages, which are licensed under the MIT License:
-- pymoo (https://pymoo.org/) - MIT License
+This project includes third-party software licensed under the MIT License:
+- [pymoo](https://pymoo.org/) - MIT License
 
-
-## Notes
-
-- The term 'rule' and 'constraint' are used interchangeably.

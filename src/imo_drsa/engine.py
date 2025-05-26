@@ -1,15 +1,12 @@
-import inspect
-from itertools import combinations
-
 import numpy as np
 
-from typing import Callable, List, Dict, Tuple
+from typing import Callable, List
 
 from matplotlib import pyplot as plt
+
 from pymoo.algorithms.moo.nsga2 import NSGA2
 from pymoo.core.problem import Problem
 from pymoo.optimize import minimize
-from pymoo.util.plotting import plot
 
 from src.imo_drsa.decision_maker import BaseDM
 from src.imo_drsa.drsa import DRSA
@@ -24,7 +21,7 @@ class IMO_DRSAEngine():
     :param objectives: List of objective functions mapping a solution vector to a float.
     """
 
-    def __init__(self): #, algorithm=NSGA2, **kwargs):
+    def __init__(self):  # , algorithm=NSGA2, **kwargs):
         """
         Initialise the DRSA and NSGA2 Classes.
 
@@ -32,7 +29,7 @@ class IMO_DRSAEngine():
         :param kwargs: any and all algorithm parameters
         """
         self.drsa = DRSA()
-        #self.algorithm = algorithm(**kwargs)
+        # self.algorithm = algorithm(**kwargs)
         self.wrapper = ProblemExtender()
         self.pareto_front = None
         self.pareto_set = None
@@ -77,7 +74,7 @@ class IMO_DRSAEngine():
             self.drsa.fit(pareto_set=pareto_set, criteria=P_idx, decision_attribute=decision_attribute)
 
             # Induce association rules from current table
-            association_rules = []#self.drsa.find_association_rules(criteria=P_idx)
+            association_rules = self.drsa.find_association_rules(criteria=P_idx)
 
             # Classify with DM feedback
             decisions = decision_maker.classify(pareto_set, association_rules)
@@ -86,7 +83,7 @@ class IMO_DRSAEngine():
             self.drsa.fit(pareto_set, P_idx, decisions)
             reducts = self.drsa.find_reducts()
 
-            #rint(self.drsa.core())
+            # rint(self.drsa.core())
             P_idx = reducts[0]
             rules = self.drsa.induce_decision_rules(P_idx, minimal=False, robust=False)
 
@@ -130,8 +127,7 @@ class IMO_DRSAEngine():
 
         return False
 
-
-    def visualise2D(self,new_pareto_front=None,
+    def visualise2D(self, new_pareto_front=None,
                     new_pareto_set=None,
                     all_kwargs=None,
                     sub_kwargs=None,
@@ -219,9 +215,7 @@ class IMO_DRSAEngine():
         :return: Tuple of decision variables (pareto_front) and objective values of Pareto front (pareto_set).
         """
 
-
         res = minimize(self.problem, self.algorithm, termination=('n_gen', n_gen), verbose=self.verbose)
-
         pareto_front, pareto_set = res.X, res.F
 
         return pareto_front, pareto_set
@@ -245,13 +239,14 @@ class IMO_DRSAEngine():
                     if elementwise:
                         constraints.append(lambda x, i=idx, th=threshold: th - self.objectives[i](x))
                     else:
-                        constraints.append(lambda X, i=idx, th=threshold: th - np.array([self.objectives[i](xi) for xi in X]))
-
+                        constraints.append(
+                            lambda X, i=idx, th=threshold: th - np.array([self.objectives[i](xi) for xi in X]))
 
                 elif direction == 'down':  # f_i(x) <= threshold  ->  f_i(x) - threshold <= 0
                     if elementwise:
                         constraints.append(lambda x, i=idx, th=threshold: self.objectives[i](x) - th)
                     else:
-                        constraints.append(lambda X, i=idx, th=threshold: np.array([self.objectives[i](xi) for xi in X]) - th)
+                        constraints.append(
+                            lambda X, i=idx, th=threshold: np.array([self.objectives[i](xi) for xi in X]) - th)
 
         return constraints

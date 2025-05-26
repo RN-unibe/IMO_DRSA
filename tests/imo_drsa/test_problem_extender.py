@@ -114,7 +114,6 @@ class TestBasicProblemExtender(TestCase):
         self.assertListEqual(w_res[1].tolist(), d_res[1].tolist())
 
 
-
 # ---------------------------------------------------------------------------------------------------------- #
 # Test with actual Test Problem from pymoo
 # ---------------------------------------------------------------------------------------------------------- #
@@ -126,7 +125,6 @@ class TestProblemExtenderBNH(TestCase):
         self.problem = get_problem("bnh")
         # Enable dynamic constraints
         self.ext_problem = ProblemExtender.enable_dynamic_constraints(self.problem)
-
 
     def test_base_evaluate_unchanged(self):
         # A small batch of two points
@@ -175,7 +173,7 @@ class TestProblemExtenderBNH(TestCase):
 
         # Last column equals our g_extra
         expected = g_extra(X).reshape(-1, 1)
-        np.testing.assert_array_almost_equal(G1[:, -1:].reshape(-1,1), expected)
+        np.testing.assert_array_almost_equal(G1[:, -1:].reshape(-1, 1), expected)
 
         # n_ieq_constr should have increased by 1
         self.assertEqual(self.ext_problem.n_ieq_constr, n0 + 1)
@@ -200,14 +198,13 @@ class TestProblemExtenderBNH(TestCase):
         # Wrapping twice should not re-wrap
         eval_before = self.problem._evaluate
         ProblemExtender.enable_dynamic_constraints(self.problem)
-        eval_after  = self.problem._evaluate
+        eval_after = self.problem._evaluate
         self.assertIs(eval_before, eval_after)
 
     def test_add_constraints_method_exists(self):
         # After enabling, add_constraints should be available
         self.assertTrue(hasattr(self.ext_problem, "add_constraints"))
         self.assertTrue(callable(self.ext_problem.add_constraints))
-
 
     def test_optimisation_with_additional_constraints(self):
         # Adding new constraints should not break minimize
@@ -221,9 +218,8 @@ class TestProblemExtenderBNH(TestCase):
         self.ext_problem.add_constraints([g1])
         res_post = minimize(self.ext_problem, algorithm, termination=('n_gen', 10), verbose=False)
 
-        self.assertEqual(res_prev.G.shape[0],res_post.G.shape[0])
+        self.assertEqual(res_prev.G.shape[0], res_post.G.shape[0])
         self.assertNotEqual(res_prev.G.shape[1], res_post.G.shape[1])
-
 
 
 if __name__ == "__main__":

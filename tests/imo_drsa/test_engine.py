@@ -15,16 +15,14 @@ np.random.seed(42)
 
 class TestIMO_DRSAEngine(TestCase):
 
-
     def test_pareto_front(self):
         prob = get_problem("bnh")
 
         engine = IMO_DRSAEngine().fit(prob)
-        #engine.problem.add_constraints()
+        # engine.problem.add_constraints()
         engine.calculate_pareto_front(n_gen=5)  # just to see if it works
 
-        #engine.visualise()
-
+        # engine.visualise()
 
     def test_generate_constraints(self):
         # Single rule with thresholds matching x[0]=1, x[1]=2
@@ -52,7 +50,6 @@ class TestIMO_DRSAEngine(TestCase):
         self.assertNotEqual(dr[3](x), 0)
 
 
-
 # ---------------------------------------------------------------------------------------------------------- #
 # Testing it with different test problems
 # ---------------------------------------------------------------------------------------------------------- #
@@ -60,7 +57,7 @@ class TestIMO_DRSAEngine(TestCase):
 class TestIMO_DRSAEngineProblemSolving(TestCase):
 
     def setUp(self):
-        self.verbose = True
+        self.verbose = False
         self.visualise = self.verbose
         self.max_iter = 4
 
@@ -68,7 +65,7 @@ class TestIMO_DRSAEngineProblemSolving(TestCase):
     # Double-objective problems
     # ---------------------------------------------------------------------------------------------------------- #
     def test_solve_bnh(self):
-        #Test if the solve function can terminate at all and to observe its behaviour
+        # Test if the solve function can terminate at all and to observe its behaviour
         dm = AutomatedDM()
         problem = get_problem("bnh")
 
@@ -90,21 +87,20 @@ class TestIMO_DRSAEngineProblemSolving(TestCase):
         self.assertTrue(success)
 
     def test_solve_osy(self):
-        #Test if the solve function can terminate at all and to observe its behaviour
+        # Test if the solve function can terminate at all and to observe its behaviour
         dm = AutomatedDM()
         problem = get_problem("osy")
 
         def f0(x):
             x1, x2, x3, x4, x5, _ = x
             return -(25 * (x1 - 2) ** 2 +
-                    (x2 - 2) ** 2 +
-                    (x3 - 1) ** 2 +
-                    (x4 - 4) ** 2 +
-                    (x5 - 1) ** 2)
+                     (x2 - 2) ** 2 +
+                     (x3 - 1) ** 2 +
+                     (x4 - 4) ** 2 +
+                     (x5 - 1) ** 2)
 
         def f1(x):
             return np.sum(np.asarray(x) ** 2)
-
 
         objectives = [f0, f1]
 
@@ -114,9 +110,8 @@ class TestIMO_DRSAEngineProblemSolving(TestCase):
 
         self.assertTrue(success)
 
-
     def test_solve_tnk(self):
-        #Test if the solve function can terminate at all and to observe its behaviour
+        # Test if the solve function can terminate at all and to observe its behaviour
         dm = AutomatedDM()
         problem = get_problem("tnk")
 
@@ -134,12 +129,11 @@ class TestIMO_DRSAEngineProblemSolving(TestCase):
 
         self.assertTrue(success)
 
-
     # ---------------------------------------------------------------------------------------------------------- #
     # Triple-objective problems
     # ---------------------------------------------------------------------------------------------------------- #
     def test_solve_dtlz1_3_obj(self):
-        #Test if the solve function can terminate at all and to observe its behaviour
+        # Test if the solve function can terminate at all and to observe its behaviour
         dm = AutomatedDM()
         problem = get_problem("dtlz1")
 
@@ -154,10 +148,9 @@ class TestIMO_DRSAEngineProblemSolving(TestCase):
             objectives = []
             for i in range(n_obj):
                 objectives.append(lambda x, i=i: (0.5 * (1 + g(x))
-                                                      * (np.prod(x[: n_obj - i - 1]) if (n_obj - i - 1) > 0 else 1)
-                                                      * (1 if i == 0 else (1 - x[n_obj - i]))))
+                                                  * (np.prod(x[: n_obj - i - 1]) if (n_obj - i - 1) > 0 else 1)
+                                                  * (1 if i == 0 else (1 - x[n_obj - i]))))
             return objectives
-
 
         objectives = dtlz1(3)
 
@@ -166,9 +159,6 @@ class TestIMO_DRSAEngineProblemSolving(TestCase):
         success = engine.run(dm, visualise=self.visualise, max_iter=self.max_iter)
 
         self.assertTrue(success)
-
-
-
 
 
 if __name__ == '__main__':
