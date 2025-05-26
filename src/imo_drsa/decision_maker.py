@@ -17,13 +17,13 @@ class BaseDM:
     """
 
     @abc.abstractmethod
-    def classify(self, T, association_rules):
+    def classify(self, T, assoc_rules_summary):
         """
         Classify Pareto sample into 'good' (2) vs 'other' (1) via median-split.
         Chooses the objective whose split yields the most balanced classes.
 
         :param T: array of shape (n_samples, n_objectives)
-        :param association_rules: not used in this strategy
+        :param assoc_rules_summary: str the summary of the association rules
         :return: array of labels (1 or 2) for each sample in T
         """
         pass
@@ -36,6 +36,10 @@ class BaseDM:
         :param rules: list of decision rules, each as a tuple
         :return: chosen subset of rules
         """
+        pass
+
+    @abc.abstractmethod
+    def select_reduct(self, reducts, core):
         pass
 
     @abc.abstractmethod
@@ -83,6 +87,8 @@ class BaseDM:
 
         return pareto
 
+    def is_interactive(self):
+        return False
 
 # ---------------------------------------------------------------------------------------------------------- #
 # Interactive DM
@@ -94,17 +100,17 @@ class InteractiveDM(BaseDM):
     and decision rules.
     """
 
-    def classify(self, T: np.ndarray, association_rules) -> np.ndarray:
+    def classify(self, T: np.ndarray, assoc_rules_summary:str) -> np.ndarray:
         """
         Prompt the user to classify Pareto-optimal samples into 'good' or 'other'.
         Displays association rules and current Pareto sample for context.
 
         :param T: objective values of Pareto-optimal samples (n_samples, n_objectives)
-        :param association_rules: association rules for context
+        :param assoc_rules_summary: association rules for context
         :return: array of labels (2 for 'good', 1 for 'other')
         """
         print("\nAssociation Rules:")
-        DRSA.explain_rules(association_rules, verbose=True)
+        print(assoc_rules_summary)
 
         print("\nCurrent Pareto Sample (objective values):")
         for idx, obj in enumerate(T):
@@ -140,6 +146,22 @@ class InteractiveDM(BaseDM):
                     chosen.append(rules[i])
         return chosen
 
+    def select_reduct(self, reducts, core):
+        if len(reducts) > 1:
+            print("Available Reducts:")
+            for idx, red in enumerate(reducts):
+                print(f"[{idx}] {red}")
+
+            print(f"Core criteria (must keep): {core}")
+
+            selected_idx = input("Select reduct by index (default 0): ").strip()
+            selected_idx = int(selected_idx) if selected_idx.isdigit() else 0
+            selected_reduct = reducts[selected_idx]
+        else:
+            selected_reduct = reducts[0]
+
+        return selected_reduct
+
     def is_satisfied(self, X, T: np.ndarray, rules) -> bool:
         """
         Prompt the user to indicate if any solution from the new Pareto sample is satisfactory.
@@ -153,15 +175,15 @@ class InteractiveDM(BaseDM):
         for idx, obj in enumerate(T):
             print(f"[{idx}] {obj}")
 
-        selection = input("\nEnter index of a satisfying solution (or press Enter to continue): ")
-        if selection.strip().isdigit():
-            sol = int(selection)
-            if 0 <= sol < len(T):
-                print(f"\nSolution {sol} selected. Ending now.")
-                return True
+        selection = input("\nAre you satisfied with this selection? (y, n): ")
+        if selection.strip().lower() == 'y':
+            return True
+
         print("\nContinuing to next iteration.")
         return False
 
+    def is_interactive(self):
+        return True
 
 # ---------------------------------------------------------------------------------------------------------- #
 # Automated DM
@@ -189,13 +211,13 @@ class AutomatedDM(BaseDM):
         self.prev_hv = None
         self.round = 0
 
-    def classify(self, T: np.ndarray, association_rules) -> np.ndarray:
+    def classify(self, T: np.ndarray, assoc_rules_summary) -> np.ndarray:
         """
         Automatically classify samples via median-split on objectives for balanced labels,
         compute initial hypervolume indicator.
 
         :param T: objective values of Pareto-optimal samples
-        :param association_rules: association rules (unused)
+        :param assoc_rules_summary: association rules (unused)
         :return: labels array where 2 indicates better than median
         """
         medians = np.median(T, axis=0)
@@ -228,6 +250,9 @@ class AutomatedDM(BaseDM):
         if self.score == 'simple':
             return self.simple_score(rules)
         return self.select_pareto(rules)
+
+    def select_reduct(self, reducts, core):
+        return min(reducts, key=len)
 
     def is_satisfied(self, X, T: np.ndarray, rules) -> bool:
         """
@@ -278,12 +303,12 @@ class DummyDM(BaseDM):
         self.round = 0
         self.score = 'pareto'
 
-    def classify(self, T, association_rules):
+    def classify(self, T, assoc_rules_summary):
         """
         Dummy classification: always returns label 1 for all samples.
 
         :param T: objective values (unused)
-        :param association_rules: (unused)
+        :param assoc_rules_summary: (unused)
         :return: label array of ones
         """
         n, m = T.shape
@@ -300,6 +325,9 @@ class DummyDM(BaseDM):
             return self.simple_score(rules)
         elif self.score == 'pareto':
             return self.select_pareto(rules)
+
+    def select_reduct(self, reducts, core):
+        return reducts[0]
 
     def is_satisfied(self, X, T, rules) -> bool:
         """

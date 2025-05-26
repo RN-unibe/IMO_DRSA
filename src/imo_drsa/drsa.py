@@ -1,9 +1,14 @@
-from itertools import combinations, product
 import operator
-from typing import Dict, List, Tuple
-
 import numpy as np
+import pandas as pd
 
+
+from typing import Dict, List, Tuple
+from itertools import combinations, product
+
+
+from mlxtend.preprocessing import TransactionEncoder
+from mlxtend.frequent_patterns import apriori, association_rules, fpgrowth
 
 
 class DRSA:
@@ -45,6 +50,8 @@ class DRSA:
 
         self.N = pareto_set.shape[0]
         self.m = 0 if decision_attribute is None else (decision_attribute.max())
+
+        self.bin_edges = {i: np.percentile(self.pareto_set[:, i], [25, 50, 75]) for i in criteria}
 
         return self
 
@@ -186,10 +193,13 @@ class DRSA:
 
         return reducts
 
-    def core(self) -> Tuple:
+
+    def core(self, reducts=None) -> Tuple:
         """Compute core criteria as intersecti
-        on of all reducts."""
-        reducts = self.find_reducts()
+        on of all reducts.
+        :param reducts: """
+        reducts = reducts or self.find_reducts()
+
         if not reducts:
             return ()
 
@@ -282,7 +292,9 @@ class DRSA:
 
                 if desc not in seen:
                     seen.add(desc)
-                    rules.append((profile, concl, support, confidence, kind, direction, desc))
+                    rule = (profile, concl, support, confidence, kind, direction, desc)
+                    if self.is_robust(rule, direction):
+                        rules.append(rule)
 
         # Filter robust: at least one base
         if robust:
@@ -358,101 +370,140 @@ class DRSA:
     # ---------------------------------------------------------------------------------------------------------- #
     # Association-rule mining
     # ---------------------------------------------------------------------------------------------------------- #
-
     def find_association_rules(self,
-                               criteria: Tuple[int, ...] = None,
-                               min_support: float = 0.1,
-                               min_confidence: float = 0.8,
-                               max_antecedent: int = 2,
-                               max_consequent: int = 2) -> List[Tuple]:
+                                min_support: float = 0.1,
+                                min_confidence: float = 0.8,
+                                use_fp: bool = True) -> List[Tuple]:
         """
-        Induce association rules with multi-feature antecedents and consequents.
-        WARNING: This is horrible for many criteria!
+        Mine association rules among objectives (criteria) in the Pareto set.
+        Only criterion bins are used—no decision classes involved.
 
-        :param criteria: features to consider
         :param min_support: minimum support threshold
         :param min_confidence: minimum confidence threshold
-        :param max_antecedent: max number of conditions in the IF part
-        :param max_consequent: max number of parts in the THEN part
-        :return: list of tuples
-                 (antecedent, consequent, support, confidence, kind, relation, description)
+        :param use_fp: if True, use fpgrowth; otherwise use apriori
+        :return: list of (antecedents, consequents, support, confidence, description)
         """
-        crit = criteria or self.criteria_full
-        rules = []
-        seen = set()
-        X = self.pareto_set  # shape (n_samples, n_features)
+        # 1. Build transactions from criterion quartile bins
+        transactions = []
+        for x in self.pareto_set:
+            items = []
 
-        # Precompute unique thresholds per feature
-        thresholds = {f: np.unique(X[:, f]) for f in crit}
+            for i in self.criteria_full:
+                val = x[i]
+                bins = self.bin_edges[i]
 
-        # Loop over all possible antecedent feature sets
-        for lhs_size in range(1, max_antecedent + 1):
-            for lhs_feats in combinations(crit, lhs_size):
-                # For each possible assignment of (feature, op, threshold) on the left hand side (LHS)
-                lhs_conditions = []
+                if val <= bins[0]:
+                    label = f"f_{i + 1}<=Q1"
+                elif val <= bins[1]:
+                    label = f"f_{i + 1}<=Q2"
+                elif val <= bins[2]:
+                    label = f"f_{i + 1}<=Q3"
+                else:
+                    label = f"f_{i + 1}<=Q4"
 
-                for f in lhs_feats:
-                    lhs_conditions.append([
-                        (f, t, op_sym, op_fn)
-                        for t in thresholds[f]
-                        for op_sym, op_fn in ((">=", np.greater_equal), ("<=", np.less_equal))
-                    ])
-                # Cartesian product of each feature’s possible conds
-                for lhs_assignment in product(*lhs_conditions):
-                    # build LHS mask
-                    mask_lhs = np.ones(X.shape[0], dtype=bool)
-                    for f, t, _, fn in lhs_assignment:
-                        mask_lhs &= fn(X[:, f], t)
+                items.append(label)
 
-                    support_lhs = mask_lhs.mean()
-                    if support_lhs < min_support:
-                        continue
+            transactions.append(items)
 
-                    # Now right hand side (RHS): pick disjoint feature sets
-                    remaining = set(crit) - set(lhs_feats)
-                    for rhs_size in range(1, max_consequent + 1):
-                        for rhs_feats in combinations(remaining, rhs_size):
-                            rhs_conditions = []
+        # 2. One-hot encode transactions
+        te = TransactionEncoder()
+        te_ary = te.fit(transactions).transform(transactions)
+        df = pd.DataFrame(te_ary, columns=te.columns_)
 
-                            for f in rhs_feats:
-                                rhs_conditions.append([
-                                    (f, t, op_sym, op_fn)
-                                    for t in thresholds[f]
-                                    for op_sym, op_fn in ((">=", np.greater_equal), ("<=", np.less_equal))
-                                ])
+        # 3. Find frequent itemsets
+        if use_fp:
+            freq = fpgrowth(df, min_support=min_support, use_colnames=True)
+        else:
+            freq = apriori(df, min_support=min_support, use_colnames=True)
 
-                            for rhs_assignment in product(*rhs_conditions):
-                                # build RHS mask
-                                mask_rhs = np.ones(X.shape[0], dtype=bool)
-                                for f, t, _, fn in rhs_assignment:
-                                    mask_rhs &= fn(X[:, f], t)
 
-                                support_both = np.mean(mask_lhs & mask_rhs)
-                                if support_both < min_support:
-                                    continue
+        #print(freq)
+        # 4. Generate association rules
+        raw_rules = association_rules(freq, metric="confidence", min_threshold=min_confidence)
+        assoc_rules = []
+        for _, row in raw_rules.iterrows():
+            ant = row['antecedents']
+            con = row['consequents']
+            sup = row['support']
+            conf = row['confidence']
 
-                                confidence = support_both / support_lhs
-                                if confidence < min_confidence:
-                                    continue
+            desc = self.make_association_rule_description(ant, con, sup, conf)
+            assoc_rules.append((ant, con, sup, conf, desc))
 
-                                # format rule
-                                antecedent = " AND ".join(f"f_{f + 1} {sym} {t}"
-                                                          for f, t, sym, _ in lhs_assignment)
-                                consequent = " AND ".join(f"f_{f + 1} {sym} {t}"
-                                                          for f, t, sym, _ in rhs_assignment)
-                                desc = (f"[ASSOC] IF {antecedent} "
-                                        f"THEN {consequent} "
-                                        f"(support={support_both:.2f}, confidence={confidence:.2f})")
-                                if desc in seen:
-                                    continue
-                                seen.add(desc)
-                                relation = f"{','.join(str(f) for f in lhs_feats)}->" \
-                                           f"{','.join(str(f) for f in rhs_feats)}"
-                                rules.append((lhs_assignment,
-                                              rhs_assignment,
-                                              support_both,
-                                              confidence,
-                                              'assoc',
-                                              relation,
-                                              desc))
-        return rules
+        return assoc_rules
+
+    def make_association_rule_description(self,
+                                        antecedents: frozenset,
+                                        consequents: frozenset,
+                                        support: float,
+                                        confidence: float) -> str:
+        """
+        Human-readable DRSA-format description of an objective-only association rule.
+        """
+        conditions = [item.replace('<=Q', '<=').replace('>=Q', '>=') for item in sorted(antecedents)]
+        conclusions = [item.replace('<=Q', '<=').replace('>=Q', '>=') for item in sorted(consequents)]
+        premise = ' AND '.join(conditions)
+        conclusions = ' AND '.join(conclusions)
+        return f"[ASSOC] IF {premise} THEN {conclusions} (support={support:.2f}, confidence={confidence:.2f})"
+
+    @staticmethod
+    def summarize_association_rules(assoc_rules: List[Tuple],
+                                    top_k: int = -1) -> Tuple:
+        """
+        Summarize only monotonic objective-objective rules in human-friendly terms:
+        - Only single-antecedent, single-consequent rules where both sides parse as "..._i<=Qj"
+        - Direction is 'higher' if j>=3 else 'lower'
+        - Deduplicate identical summaries by adding their supports
+        Returns:
+          summaries: set of (text, total_sup, conf) tuples
+          summaries_str: multiline string listing each summary
+        """
+        simple_rules = []
+        for ant, con, sup, conf, _ in assoc_rules:
+            if len(ant) == 1 and len(con) == 1:
+                a, = ant
+                c, = con
+                pa = a.split("<=Q")
+                pc = c.split("<=Q")
+                if len(pa) != 2 or len(pc) != 2:
+                    continue
+
+                idx_a = int(pa[0].split("_")[1])
+                q_a = int(pa[1])
+                idx_c = int(pc[0].split("_")[1])
+                q_c = int(pc[1])
+
+                dir_a = "higher" if q_a >= 3 else "lower"
+                dir_c = "higher" if q_c >= 3 else "lower"
+
+                text = f"If objective {idx_a} is {dir_a}, objective {idx_c} tends to be {dir_c}"
+                simple_rules.append((text, sup, conf))
+
+        # sort by descending confidence, then by text to stabilize
+        simple_rules.sort(key=lambda x: (-x[2], x[0]))
+
+        # take top_k (if top_k < 0, take all)
+        top_rules = simple_rules if top_k < 0 else simple_rules[:top_k]
+
+        # merge duplicates by summing support
+        merged: Dict[str, Tuple[float, float]] = {}
+        # (text) → (total_sup, conf). If multiple conf for same text, you could take max or avg;
+        # here we just keep the highest confidence.
+        for text, sup, conf in top_rules:
+            if text in merged:
+                total_sup, best_conf = merged[text]
+                merged[text] = (total_sup + sup, max(best_conf, conf))
+            else:
+                merged[text] = (sup, conf)
+
+        # build return structures
+        summaries = {(text, total_sup, conf) for text, (total_sup, conf) in merged.items()}
+
+        # human-readable multiline string
+        lines = []
+        for text, (total_sup, conf) in merged.items():
+            lines.append(f"{text} (support={total_sup:.2f}, confidence={conf:.2f})")
+        summaries_str = "\n".join(lines)
+
+        return summaries, summaries_str
+

@@ -1,3 +1,5 @@
+from copy import deepcopy
+
 import numpy as np
 
 from typing import Callable, List
@@ -8,7 +10,7 @@ from pymoo.algorithms.moo.nsga2 import NSGA2
 from pymoo.core.problem import Problem
 from pymoo.optimize import minimize
 
-from src.imo_drsa.decision_maker import BaseDM
+from src.imo_drsa.decision_maker import BaseDM, InteractiveDM
 from src.imo_drsa.drsa import DRSA
 from src.imo_drsa.problem_extender import ProblemExtender
 
@@ -28,6 +30,7 @@ class IMO_DRSAEngine():
         :param algorithm: Algorithm to use. Must be pymoo compatible
         :param kwargs: any and all algorithm parameters
         """
+        self.history = []
         self.drsa = DRSA()
         # self.algorithm = algorithm(**kwargs)
         self.wrapper = ProblemExtender()
@@ -44,7 +47,7 @@ class IMO_DRSAEngine():
         """
         self.problem = self.wrapper.enable_dynamic_constraints(problem=problem)
         self.objectives = objectives
-        self.algorithm = NSGA2(pop_size=100)  # TODO
+        self.algorithm = NSGA2(pop_size=20)  # TODO
         self.verbose = verbose
         self.pareto_front, self.pareto_set = self.calculate_pareto_front()
 
@@ -52,12 +55,12 @@ class IMO_DRSAEngine():
 
     def run(self, decision_maker: BaseDM, visualise: bool = False, max_iter: int = 5) -> bool:
         """
-        Run the interactive optimization loop.
+        Run the interactive optimisation loop.
 
         :param decision_maker: Interface for classification and feedback.
         :param visualise: Whether to plot the Pareto front each iteration.
         :param max_iter: Maximum interactive iterations.
-        :return: True if session finishes successfully; False otherwise.
+        :return: True if session finishes successfully, False otherwise.
         """
 
         P_idx = tuple([i for i in range(0, len(self.objectives))])
@@ -68,24 +71,42 @@ class IMO_DRSAEngine():
         iteration: int = 0
         while iteration < max_iter:
 
+            state_backup = {
+                'problem': deepcopy(self.problem),
+                'pareto_front': deepcopy(pareto_front),
+                'pareto_set': deepcopy(pareto_set),
+                'rules': deepcopy(rules)
+            }
+            
+            self.history.append(state_backup)
+
             if visualise:
                 self.visualise2D(pareto_front, pareto_set)
 
             self.drsa.fit(pareto_set=pareto_set, criteria=P_idx, decision_attribute=decision_attribute)
 
             # Induce association rules from current table
-            association_rules = self.drsa.find_association_rules(criteria=P_idx)
+            if decision_maker.is_interactive():
 
+                association_rules = self.drsa.find_association_rules()
+                print(association_rules)
+                _, assoc_summary = self.drsa.summarize_association_rules(association_rules)
+
+            else:
+                assoc_summary = ""
+                print("hi")
             # Classify with DM feedback
-            decisions = decision_maker.classify(pareto_set, association_rules)
+            decisions = decision_maker.classify(pareto_set, assoc_summary)
 
             # Find a reduct and induce decision rules
             self.drsa.fit(pareto_set, P_idx, decisions)
             reducts = self.drsa.find_reducts()
 
-            # rint(self.drsa.core())
-            P_idx = reducts[0]
-            rules = self.drsa.induce_decision_rules(P_idx, minimal=False, robust=False)
+            core = self.drsa.core(reducts)
+
+            reduct = decision_maker.select_reduct(reducts, core)
+
+            rules = self.drsa.induce_decision_rules(reduct, minimal=False, robust=False)
 
             # DM selects preferred rules
             selected = decision_maker.select(rules)
@@ -93,15 +114,16 @@ class IMO_DRSAEngine():
 
             # Generate new constraints from selected rules
             new_constraints = self.generate_constraints(selected)
-
             self.problem.add_constraints(new_constraints)
 
+            if visualise:
+                self.visualise2D(pareto_front, pareto_set)
+
+            # Compute Pareto front under current constraints
+            pareto_front, pareto_set = self.calculate_pareto_front()
             # Ask DM if current solutions are satisfactory
             if decision_maker.is_satisfied(pareto_front, pareto_set, rules):
                 print("DM is satisfied. Terminating Process")
-
-                if visualise:
-                    self.visualise2D(pareto_front, pareto_set)
 
                 self.pareto_front = pareto_front
                 self.pareto_set = pareto_set
@@ -109,8 +131,18 @@ class IMO_DRSAEngine():
 
                 return True
 
-            # Compute Pareto front under current constraints
-            pareto_front, pareto_set = self.calculate_pareto_front()
+            if decision_maker.is_interactive():
+                undo = input("Do you want to undo the last selection? (y/n): ")
+                if undo.lower() == 'y':
+                    last_state = self.history.pop()
+                    self.problem = last_state['problem']
+                    pareto_front = last_state['pareto_front']
+                    pareto_set = last_state['pareto_set']
+                    rules = last_state['rules']
+                    print("Last selection undone.")
+                    continue
+
+
 
             if pareto_front is None or pareto_front.size == 0:
                 print("Infeasible constraints: please revise.")
@@ -215,7 +247,7 @@ class IMO_DRSAEngine():
         :return: Tuple of decision variables (pareto_front) and objective values of Pareto front (pareto_set).
         """
 
-        res = minimize(self.problem, self.algorithm, termination=('n_gen', n_gen), verbose=self.verbose)
+        res = minimize(self.problem, NSGA2(pop_size=20) , termination=('n_gen', n_gen), verbose=self.verbose)
         pareto_front, pareto_set = res.X, res.F
 
         return pareto_front, pareto_set

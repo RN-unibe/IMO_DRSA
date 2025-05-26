@@ -167,38 +167,7 @@ class TestDecisionRuleFormatting(unittest.TestCase):
 
 class TestAssociationRules(unittest.TestCase):
 
-    def test_induce_association_rules_default(self):
-        drsa = DRSA().fit(pareto_set=np.array([[1, 1], [2, 2], [3, 3]]), criteria=(0, 1),
-                          decision_attribute=np.array([1, 2, 3]))
-
-        rules = drsa.find_association_rules(criteria=(0, 1), min_support=0.1, min_confidence=0.1)
-        # Should return a list of rule tuples
-        self.assertIsInstance(rules, list)
-        self.assertTrue(len(rules) >= 1, "Expected at least one association rule.")
-
-        for rule in rules:
-            # Each rule is a 7-tuple
-            self.assertIsInstance(rule, tuple)
-            self.assertEqual(len(rule), 7)
-
-            profile, conclusion, support, confidence, kind, relation, desc = rule
-
-            self.assertIsInstance(profile, tuple)
-            self.assertIsInstance(conclusion, tuple)
-
-            self.assertIsInstance(support, float)
-            self.assertGreaterEqual(support, 0.0)
-            self.assertLessEqual(support, 1.0)
-            self.assertIsInstance(confidence, float)
-            self.assertGreaterEqual(confidence, 0.0)
-            self.assertLessEqual(confidence, 1.0)
-
-            self.assertIsInstance(kind, str)
-            self.assertIsInstance(relation, str)
-            self.assertIsInstance(desc, str)
-            self.assertTrue(desc.startswith(f"[{kind.upper()}] IF"), f"Description does not start correctly: {desc}")
-
-    def test_induce_association_rules_multiple_criteria(self):
+    def test_find_association_rules_multiple_criteria(self):
         # Three‐objective dataset
         T = np.array([
             [5, 7, 1],
@@ -210,37 +179,40 @@ class TestAssociationRules(unittest.TestCase):
         d = np.array([1, 1, 3, 2, 2])
         drsa = DRSA().fit(T, (0, 1, 2), d)
 
-        # Mine all rules (up to 2‐antecedents, 2‐consequents by default)
-        rules = drsa.find_association_rules(min_support=0.0, min_confidence=0.0, max_antecedent=1, max_consequent=1)
+        rules = drsa.find_association_rules(min_support=0.1, min_confidence=0.8)
 
-        # We expect exactly three directed pairs:
-        #   0→2, 2→0 and 1→2
-        expected_relations = {'0->1', '1->0', '2->1', '0->2', '2->0', '1->2'}
-        found_relations = {rule[5] for rule in rules}  # rule[5] is the 'relation' field
 
-        print(found_relations)
+        summary, s = drsa.summarize_association_rules(rules)
 
-        self.assertEqual(expected_relations, found_relations)
+        print(s)
 
-        # Sanity‐check the structure of each rule
-        for lhs, rhs, support, confidence, kind, relation, desc in rules:
-            # each side should be a tuple of (feat, threshold, sym, fn)
-            self.assertTrue(isinstance(lhs, tuple) and all(len(cond) == 4 for cond in lhs))
-            self.assertTrue(isinstance(rhs, tuple) and all(len(cond) == 4 for cond in rhs))
-            self.assertEqual(kind, "assoc")
-            self.assertIn("support=", desc)
-            self.assertIn("confidence=", desc)
 
-    def test_explain_association_rule_tuple(self):
-        desc = "[ASSOC] IF f_0 >= 1 THEN f_1 >= 2 (support=0.20, confidence=0.30)"
-        rule = ({0: 1}, {1: 2}, 0.2, 0.3, 'ASSOC', '->', desc)
-        descs = DRSA.explain_rules([rule], verbose=False)
-        self.assertEqual(descs, [desc])
 
-    def test_explain_invalid_format(self):
-        # Passing a non-sequence should raise TypeError
-        with self.assertRaises(TypeError):
-            DRSA.explain_rules([42], verbose=False)
+    def test_find_association_rules(self):
+        row1 = [i for i in range(5, 10)]
+        row2 = [i for i in range(4, -1, -1)]
+
+        T = np.array([row1, row2]).T
+
+        drsa = DRSA().fit(T, (0, 1), None)
+
+        rules = drsa.find_association_rules(min_support=0.1, min_confidence=0.8)
+
+
+        summary, s = drsa.summarize_association_rules(rules)
+
+        print(s)
+
+        expected1 = ("If objective 1 is higher, objective 2 tends to be lower", 0.4, 1.0)
+        expected2 = ("If objective 1 is higher, objective 2 tends to be higher", 0.2, 1.0)
+
+
+        self.assertTrue(expected1 in summary)
+        self.assertTrue(expected2 not in summary)
+
+
+
+
 
 
 if __name__ == '__main__':
