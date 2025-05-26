@@ -1,5 +1,9 @@
+import logging
+import os
+import shutil
+import sys
 import unittest
-from unittest import TestCase
+from unittest import TestCase, mock
 
 import numpy as np
 from pymoo.algorithms.moo.nsga2 import NSGA2
@@ -123,6 +127,7 @@ class TestProblemExtenderBNH(TestCase):
         # Enable dynamic constraints
         self.ext_problem = ProblemExtender.enable_dynamic_constraints(self.problem)
 
+
     def test_base_evaluate_unchanged(self):
         # A small batch of two points
         X = np.array([[0.5, 0.5],
@@ -213,10 +218,10 @@ class TestProblemExtenderBNH(TestCase):
 
         res_prev = minimize(self.problem, algorithm, termination=('n_gen', 10), verbose=False)
 
-        self.problem.add_constraints([g1])
-        res_post = minimize(self.problem, algorithm, termination=('n_gen', 10), verbose=False)
+        self.ext_problem.add_constraints([g1])
+        res_post = minimize(self.ext_problem, algorithm, termination=('n_gen', 10), verbose=False)
 
-        self.assertEqual(res_prev.G.shape[0], res_post.G.shape[0])
+        self.assertEqual(res_prev.G.shape[0],res_post.G.shape[0])
         self.assertNotEqual(res_prev.G.shape[1], res_post.G.shape[1])
 
 

@@ -6,9 +6,6 @@ import numpy as np
 
 from src.imo_drsa.drsa import DRSA
 
-# Ensure the module path includes the directory where drsa.py is located
-sys.path.insert(0, '/mnt/data')
-
 
 class TestDRSA(TestCase):
     np.random.seed(42)
@@ -21,7 +18,7 @@ class TestDRSA(TestCase):
                            [2, 5]])
         self.d = np.array([1, 1, 3, 2, 2])
         # Initialize DRSA with full criteria
-        self.drsa = DRSA(self.T, self.d, criteria=(0, 1))
+        self.drsa = DRSA(self.T, criteria=(0, 1), decision_attribute=self.d)
 
     def test_positive_cone(self):
         pos = self.drsa.positive_cone((0, 1))
@@ -61,53 +58,7 @@ class TestDRSA(TestCase):
         # Only the full set of criteria is a minimal reduct here
         self.assertEqual(reducts, [(0, 1)])
 
-    def test_generate_association_rules(self):
-        # Using min_support=1 to only accept rules covering all objects in premise
-        rules = self.drsa.find_association_rules(self.T, (0, 1), min_support=1)
-        self.assertIsInstance(rules, dict)
 
-        # With two criteria, only one pair (0,1) should appear
-        self.assertEqual(set(rules.keys()), {(0, 1)})
-
-        rule = rules[(0, 1)]
-        self.assertIsInstance(rule, dict)
-
-        for key in ('if', 'then', 'support', 'confidence'):
-            self.assertIn(key, rule)
-
-        self.assertGreaterEqual(rule['support'], 0)
-        self.assertLessEqual(rule['support'], 1)
-        self.assertGreaterEqual(rule['confidence'], 0)
-        self.assertLessEqual(rule['confidence'], 1)
-
-    # The following tests validate three-objective rules
-    def test_generate_association_rules_three_objectives(self):
-        T = np.array([[5, 7, 1],
-                      [3, 4, 2],
-                      [6, 2, 6],
-                      [4, 6, 5],
-                      [2, 5, 3]])
-
-        d = np.array([1, 1, 3, 2, 2])
-
-        drsa = DRSA(T, d, criteria=(0, 1, 2))
-        rules = drsa.find_association_rules(T, (0, 1, 2), min_support=1)
-
-        expected_pairs = {(0, 1), (0, 2), (1, 2)}
-
-        self.assertIsInstance(rules, dict)
-        self.assertEqual(set(rules.keys()), expected_pairs)
-
-        for pair, rule in rules.items():
-            self.assertIsInstance(rule, dict, f"Rule for pair {pair} is None or not a dict")
-
-            for key in ('if', 'then', 'support', 'confidence'):
-                self.assertIn(key, rule, f"Missing '{key}' in rule for {pair}")
-
-            self.assertGreaterEqual(rule['support'], 0)
-            self.assertLessEqual(rule['support'], 1)
-            self.assertGreaterEqual(rule['confidence'], 0)
-            self.assertLessEqual(rule['confidence'], 1)
 
     def test_general(self):
         # Validate pipeline end-to-end
@@ -146,7 +97,7 @@ class TestDRSA2D(unittest.TestCase):
         self.pareto_set = np.array([[1, 2], [2, 1]])
         self.dec_attr = np.array([1, 2])
         self.criteria = (0, 1)
-        self.drsa = DRSA(self.pareto_set, self.dec_attr, self.criteria)
+        self.drsa = DRSA(self.pareto_set, self.criteria, self.dec_attr)
 
     def test_positive_cone(self):
         expected = np.array([[True, False], [False, True]])
@@ -181,7 +132,7 @@ class TestDRSA1D(unittest.TestCase):
         self.pareto_set = np.array([[1], [2], [3]])
         self.dec_attr = np.array([1, 2, 3])
         self.criteria = (0,)
-        self.drsa = DRSA(self.pareto_set, self.dec_attr, self.criteria)
+        self.drsa = DRSA(self.pareto_set, self.criteria, self.dec_attr)
 
     def test_quality_and_reducts(self):
         # Full quality should be 1.0
@@ -203,7 +154,7 @@ class TestDecisionRuleFormatting(unittest.TestCase):
         self.pareto_set = np.array([[1]])
         self.dec_attr = np.array([1])
         self.criteria = (0,)
-        self.drsa = DRSA(self.pareto_set, self.dec_attr, self.criteria)
+        self.drsa = DRSA(self.pareto_set, self.criteria, self.dec_attr)
 
     def test_make_rule_description(self):
         profile = {0: 5, 1: 10}
@@ -216,43 +167,83 @@ class TestDecisionRuleFormatting(unittest.TestCase):
 
 
 class TestAssociationRules(unittest.TestCase):
-    def setUp(self):
-        # Reuse the 2D DRSA for association rules
-        self.drsa = DRSA(np.array([[1, 1], [2, 2], [3, 3]]), np.array([1, 2, 3]), (0, 1))
 
-    def test_find_single_rule(self):
-        # Uniform arrays to get a clear rule
-        f_i = np.array([1, 1, 1])
-        f_j = np.array([0, 0, 0])
-        rule = self.drsa.find_single_rule(f_i, f_j, min_support=0.1, min_confidence=0.1)
-        self.assertIsInstance(rule, dict)
-        self.assertEqual(rule['if'], "x >= 1")
-        self.assertEqual(rule['then'], "y >= 0")
-        self.assertAlmostEqual(rule['support'], 1.0)
-        self.assertAlmostEqual(rule['confidence'], 1.0)
+    def test_induce_association_rules_default(self):
+        drsa = DRSA().fit(pareto_set=np.array([[1, 1], [2, 2], [3, 3]]), criteria=(0, 1), decision_attribute=np.array([1, 2, 3]))
 
-    def test_find_association_rules(self):
-        pareto_set = np.array([[1, 1], [2, 2], [3, 3]])
-        drsa2 = DRSA(pareto_set, np.array([1, 2, 3]), (0, 1))
-        rules = drsa2.find_association_rules(pareto_set, criteria=(0, 1), min_support=0.1, min_confidence=0.1)
-        self.assertIn((0, 1), rules)
-        rule = rules[(0, 1)]
-        if rule:
-            self.assertIn('f_0(x)', rule['if'])
-            self.assertIn('f_1(x)', rule['then'])
+        rules = drsa.find_association_rules(criteria=(0, 1), min_support=0.1, min_confidence=0.1)
+        # Should return a list of rule tuples
+        self.assertIsInstance(rules, list)
+        self.assertTrue(len(rules) >= 1, "Expected at least one association rule.")
+
+        for rule in rules:
+            # Each rule is a 7-tuple
+            self.assertIsInstance(rule, tuple)
+            self.assertEqual(len(rule), 7)
+
+            profile, conclusion, support, confidence, kind, relation, desc = rule
+
+            self.assertIsInstance(profile, tuple)
+            self.assertIsInstance(conclusion, tuple)
+
+            self.assertIsInstance(support, float)
+            self.assertGreaterEqual(support, 0.0)
+            self.assertLessEqual(support, 1.0)
+            self.assertIsInstance(confidence, float)
+            self.assertGreaterEqual(confidence, 0.0)
+            self.assertLessEqual(confidence, 1.0)
+
+            self.assertIsInstance(kind, str)
+            self.assertIsInstance(relation, str)
+            self.assertIsInstance(desc, str)
+            self.assertTrue(desc.startswith(f"[{kind.upper()}] IF"), f"Description does not start correctly: {desc}")
+
+    def test_induce_association_rules_multiple_criteria(self):
+        # Three‐objective dataset
+        T = np.array([
+            [5, 7, 1],
+            [3, 4, 2],
+            [6, 2, 6],
+            [4, 6, 5],
+            [2, 5, 3],
+        ])
+        d = np.array([1, 1, 3, 2, 2])
+        drsa = DRSA().fit(T, (0, 1, 2), d)
+
+        # Mine all rules (up to 2‐antecedents, 2‐consequents by default)
+        rules = drsa.find_association_rules(min_support=0.0, min_confidence=0.0, max_antecedent=1, max_consequent=1)
+
+        # We expect exactly three directed pairs:
+        #   0→2, 2→0 and 1→2
+        expected_relations = {'0->1', '1->0', '2->1','0->2', '2->0', '1->2'}
+        found_relations = {rule[5] for rule in rules}  # rule[5] is the 'relation' field
+
+        print(found_relations)
+        
+
+        self.assertEqual(expected_relations, found_relations)
+
+        # Sanity‐check the structure of each rule
+        for lhs, rhs, support, confidence, kind, relation, desc in rules:
+            # each side should be a tuple of (feat, threshold, sym, fn)
+            self.assertTrue(isinstance(lhs, tuple) and all(len(cond) == 4 for cond in lhs))
+            self.assertTrue(isinstance(rhs, tuple) and all(len(cond) == 4 for cond in rhs))
+            self.assertEqual(kind, "assoc")
+            self.assertIn("support=", desc)
+            self.assertIn("confidence=", desc)
 
 
-class TestExplainRules(unittest.TestCase):
-    def test_explain_association_rule(self):
-        rule = {'if': 'x >= 1', 'then': 'y >= 2', 'support': 0.2, 'confidence': 0.3}
+
+    def test_explain_association_rule_tuple(self):
+        desc = "[ASSOC] IF f_0 >= 1 THEN f_1 >= 2 (support=0.20, confidence=0.30)"
+        rule = ({0: 1}, {1: 2}, 0.2, 0.3, 'ASSOC', '->', desc)
         descs = DRSA.explain_rules([rule], verbose=False)
-        self.assertEqual(descs[0], "if x >= 1 then y >= 2  (support=0.20, confidence=0.30)")
+        self.assertEqual(descs, [desc])
 
     def test_explain_invalid_format(self):
-        # Expect a generic Exception due to invalid rule format
-        with self.assertRaises(Exception):
+        # Passing a non-sequence should raise TypeError
+        with self.assertRaises(TypeError):
             DRSA.explain_rules([42], verbose=False)
-
 
 if __name__ == '__main__':
     unittest.main()

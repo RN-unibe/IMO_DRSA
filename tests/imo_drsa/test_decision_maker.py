@@ -10,7 +10,7 @@ from src.imo_drsa.drsa import DRSA
 class TestInteractiveDM(TestCase):
 
     def test_select(self):
-        dm = InteractiveDM()
+        dm = AutomatedDM()
 
         rules = [({0: 1.0, 1: 2.0}, 'd>=2', 0.5, 0.9, 'certain', 'up',
                   "[CERTAIN] IF f_1 >= 1.0 AND f_2 >= 2.0 THEN d >= 2 (support=0.50, confidence=0.90)"),

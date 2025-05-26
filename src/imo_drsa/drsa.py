@@ -1,11 +1,11 @@
-import itertools
+from itertools import combinations, product
 import operator
-from itertools import combinations
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+from sphinx.addnodes import desc
 
 
 class DRSA:
@@ -22,9 +22,7 @@ class DRSA:
     :param m: Number of decision classes.
     """
 
-    def __init__(self, pareto_set: np.ndarray = None,
-                 decision_attribute: np.ndarray = None,
-                 criteria: Tuple = None):
+    def __init__(self, pareto_set: np.ndarray = None, criteria: Tuple = None, decision_attribute: np.ndarray = None):
         """
         :param pareto_set: NumPy array with shape (N, n_var), each row is an object, columns are criteria evaluated on that object
         :param decision_attribute: NumPy array of length N, integer‐encoded decision classes (1, ..., m)
@@ -33,7 +31,7 @@ class DRSA:
         if pareto_set is not None and decision_attribute is not None and criteria is not None:
             self.fit(pareto_set, criteria, decision_attribute)
 
-    def fit(self, pareto_set: np.ndarray, criteria: Tuple, decision_attribute: np.ndarray = None) -> None:
+    def fit(self, pareto_set: np.ndarray, criteria: Tuple, decision_attribute: np.ndarray = None):
         """
         :param pareto_set: NumPy array with shape (N, n_var), each row is an object, columns are criteria evaluated on that object
         :param decision_attribute: NumPy array of length N, integer‐encoded decision classes (1, ..., m)
@@ -49,6 +47,8 @@ class DRSA:
 
         self.N = pareto_set.shape[0]
         self.m = 0 if decision_attribute is None else (decision_attribute.max())
+
+        return self
 
     # ---------------------------------------------------------------------------------------------------------- #
     # Dominance‐cone computations
@@ -234,11 +234,11 @@ class DRSA:
 
         return (f"[{kind.upper()}] IF {premise} THEN {conclusion} (support={support:.2f}, confidence={confidence:.2f})")
 
-    def induce_decision_rules(self, criteria:Tuple = None,
-                                direction: str = 'up',
-                                threshold: int = 2,
-                                minimal: bool = True,
-                                robust: bool = True) -> List[Tuple]:
+    def induce_decision_rules(self, criteria: Tuple = None,
+                              direction: str = 'up',
+                              threshold: int = 2,
+                              minimal: bool = True,
+                              robust: bool = True) -> List[Tuple]:
         """
         Induce certain and possible decision rules for Cl>=threshold or Cl<=threshold.
         direction: 'up' or 'down'.
@@ -267,7 +267,8 @@ class DRSA:
             conf_fn = lambda mask: (self.decision_attribute[mask] <= threshold).mean()
             concl = f"d <= {threshold}"
 
-        raw_rules = []
+        seen = set()
+        rules = []
         for kind, indices in [('certain', np.where(lower)[0]), ('possible', np.where(upper & ~lower)[0])]:
             for idx in indices:
                 profile = {i: self.pareto_set[idx, i] for i in crit}
@@ -281,28 +282,29 @@ class DRSA:
 
                 desc = self.make_rule_description(profile, concl, support, confidence, kind, direction)
 
-                raw_rules.append((profile, concl, support, confidence, kind, direction, desc))
+                if desc not in seen:
+                    seen.add(desc)
+                    rules.append((profile, concl, support, confidence, kind, direction, desc))
 
         # Filter robust: at least one base
         if robust:
-            raw_rules = [r for r in raw_rules if self.is_robust(r, direction)]
+            rules = [r for r in rules if self.is_robust(r, direction)]
 
         # Filter minimal: no weaker rule subsumes it
         if minimal:
-            rules = raw_rules.copy()
+            rules = rules.copy()
             minimal_rules = []
 
             for r in rules:
                 if not any(self.subsumes(r2, r, direction) for r2 in rules if r2 != r):
                     minimal_rules.append(r)
 
-            raw_rules = minimal_rules
+            rules = minimal_rules
 
-
-        return raw_rules
+        return rules
 
     @staticmethod
-    def subsumes(r1, r2, direction = 'up'):
+    def subsumes(r1, r2, direction='up'):
         p1, _, _, _, _, _, _ = r1
         p2, _, _, _, _, _, _ = r2
         # r1 subsumes r2 if p1 is weaker (i.e., thresholds for >= lower, <= higher)
@@ -316,7 +318,7 @@ class DRSA:
 
         return True
 
-    def is_robust(self, rule, direction = 'up'):
+    def is_robust(self, rule, direction='up'):
         profile, _, _, _, kind, _, _ = rule
         mask = np.ones(self.N, dtype=bool)
         cmp_op = operator.ge if direction == 'up' else operator.le
@@ -347,23 +349,11 @@ class DRSA:
         explanations = []
 
         for rule in rules:
-            if len(rule) == 7:  # decision rule
-                desc = rule[6]
-                explanations.append(desc)
+            desc = rule[-1]
+            explanations.append(desc)
 
-                if verbose:
-                    print(desc)
-
-            elif isinstance(rule, dict):  # association rule
-                desc = f"if {rule['if']} then {rule['then']}  "
-                desc += f"(support={rule['support']:.2f}, confidence={rule['confidence']:.2f})"
-                explanations.append(desc)
-
-                if verbose:
-                    print(desc)
-
-            else:
-                raise ValueError(f"Unknown rule format: {rule!r}")
+            if verbose:
+                print(desc)
 
         return explanations
 
@@ -371,102 +361,100 @@ class DRSA:
     # Association-rule mining
     # ---------------------------------------------------------------------------------------------------------- #
 
-    def find_single_rule(self, f_i: np.ndarray,
-                         f_j: np.ndarray,
-                         min_support: float = 0.1,
-                         min_confidence: float = 0.8) -> Dict:
-        """
-        Find the strongest single association rule for two objectives f_i, f_j.
-
-        :param f_i: first objective
-        :param f_j: second objective
-        :param min_support: minimum support of the decision
-        :param min_confidence: minimum confidence of the decision
-
-        :return: The strongest single association rule for two objectives f_i, f_j.
-        """
-        best = None
-
-        ti = np.unique(f_i)
-        tj = np.unique(f_j)
-
-        for sym_x, op_x in ((">=", np.greater_equal), ("<=", np.less_equal)):
-            masks_x = {t: op_x(f_i, t) for t in ti}
-
-            for sym_y, op_y in ((">=", np.greater_equal), ("<=", np.less_equal)):
-                for t_x, mask_x in masks_x.items():
-                    n_prem = mask_x.sum()
-
-                    if n_prem == 0:
-                        continue
-
-                    for t_y in tj:
-                        mask_y = op_y(f_j, t_y)
-                        both = mask_x & mask_y
-                        support = both.mean()
-
-                        if support < min_support:
-                            continue
-
-                        confidence = both.sum() / n_prem
-                        if confidence < min_confidence:
-                            continue
-
-                        score = (confidence, support)
-                        rule = {'if': f"x {sym_x} {t_x:.4g}", 'then': f"y {sym_y} {t_y:.4g}",
-                                'support': support, 'confidence': confidence, 'score': score}
-
-                        if best is None or score > best['score']:
-                            best = rule
-
-        return best
-
-    def find_association_rules(self, pareto_set: np.ndarray,
-                               criteria: Tuple = None,
+    def find_association_rules(self,
+                               criteria: Tuple[int, ...] = None,
                                min_support: float = 0.1,
                                min_confidence: float = 0.8,
-                               bidirectional: bool = True) -> Dict:
+                               max_antecedent: int = 2,
+                               max_consequent: int = 2) -> List[Tuple]:
         """
-        Induce association rules among feature pairs.
-        TODO: This isn't really DRSA's responsibility, maybe move directly to IMO_DRSA?
+        Induce association rules with multi-feature antecedents and consequents.
+        WARNING: This is horrible for many criteria!
 
-        :param pareto_set: feature pairs
-        :param criteria: criteria for association rules
-        :param min_support: minimum support of the decision
-        :param min_confidence: minimum confidence of the decision
-        :param bidirectional: bidirectional association rules
-
-        :return: the mapping (i,j) -> rule dict or None.
+        :param criteria: features to consider
+        :param min_support: minimum support threshold
+        :param min_confidence: minimum confidence threshold
+        :param max_antecedent: max number of conditions in the IF part
+        :param max_consequent: max number of parts in the THEN part
+        :return: list of tuples
+                 (antecedent, consequent, support, confidence, kind, relation, description)
         """
-        rules = {}
+        crit = criteria or self.criteria_full
+        rules = []
+        seen = set()
+        X = self.pareto_set  # shape (n_samples, n_features)
 
-        for i, j in combinations(criteria, 2):
-            r_ij = self.find_single_rule(pareto_set[:, i], pareto_set[:, j], min_support, min_confidence)
+        # Precompute unique thresholds per feature
+        thresholds = {f: np.unique(X[:, f]) for f in crit}
 
-            if bidirectional:
-                r_ji = self.find_single_rule(pareto_set[:, j], pareto_set[:, i], min_support, min_confidence)
+        # Loop over all possible antecedent feature sets
+        for lhs_size in range(1, max_antecedent + 1):
+            for lhs_feats in combinations(crit, lhs_size):
+                # For each possible assignment of (feature, op, threshold) on the left hand side (LHS)
+                lhs_conditions = []
 
-                if r_ij and r_ji:
-                    chosen = r_ij if r_ij['confidence'] >= r_ji['confidence'] else r_ji
+                for f in lhs_feats:
+                    lhs_conditions.append([
+                        (f, t, op_sym, op_fn)
+                        for t in thresholds[f]
+                        for op_sym, op_fn in ((">=", np.greater_equal), ("<=", np.less_equal))
+                    ])
+                # Cartesian product of each feature’s possible conds
+                for lhs_assignment in product(*lhs_conditions):
+                    # build LHS mask
+                    mask_lhs = np.ones(X.shape[0], dtype=bool)
+                    for f, t, _, fn in lhs_assignment:
+                        mask_lhs &= fn(X[:, f], t)
 
-                else:
-                    chosen = r_ij or r_ji
+                    support_lhs = mask_lhs.mean()
+                    if support_lhs < min_support:
+                        continue
 
-                if chosen:
-                    if chosen is r_ji:
-                        chosen['if'] = chosen['if'].replace('x', f'f_{j}(x)')
-                        chosen['then'] = chosen['then'].replace('y', f'f_{i}(x)')
-                        rules[(j, i)] = chosen
+                    # Now right hand side (RHS): pick disjoint feature sets
+                    remaining = set(crit) - set(lhs_feats)
+                    for rhs_size in range(1, max_consequent + 1):
+                        for rhs_feats in combinations(remaining, rhs_size):
+                            rhs_conditions = []
 
-                    else:
-                        chosen['if'] = chosen['if'].replace('x', f'f_{i}(x)')
-                        chosen['then'] = chosen['then'].replace('y', f'f_{j}(x)')
-                        rules[(i, j)] = chosen
+                            for f in rhs_feats:
+                                rhs_conditions.append([
+                                    (f, t, op_sym, op_fn)
+                                    for t in thresholds[f]
+                                    for op_sym, op_fn in ((">=", np.greater_equal), ("<=", np.less_equal))
+                                ])
 
-                else:
-                    rules[(i, j)] = None
+                            for rhs_assignment in product(*rhs_conditions):
+                                # build RHS mask
+                                mask_rhs = np.ones(X.shape[0], dtype=bool)
+                                for f, t, _, fn in rhs_assignment:
+                                    mask_rhs &= fn(X[:, f], t)
 
-            else:
-                rules[(i, j)] = r_ij
+                                support_both = np.mean(mask_lhs & mask_rhs)
+                                if support_both < min_support:
+                                    continue
 
+                                confidence = support_both / support_lhs
+                                if confidence < min_confidence:
+                                    continue
+
+                                # format rule
+                                antecedent = " AND ".join(f"f_{f + 1} {sym} {t}"
+                                                          for f, t, sym, _ in lhs_assignment)
+                                consequent = " AND ".join(f"f_{f + 1} {sym} {t}"
+                                                          for f, t, sym, _ in rhs_assignment)
+                                desc = (f"[ASSOC] IF {antecedent} "
+                                        f"THEN {consequent} "
+                                        f"(support={support_both:.2f}, confidence={confidence:.2f})")
+                                if desc in seen:
+                                    continue
+                                seen.add(desc)
+                                relation = f"{','.join(str(f) for f in lhs_feats)}->" \
+                                           f"{','.join(str(f) for f in rhs_feats)}"
+                                rules.append((lhs_assignment,
+                                              rhs_assignment,
+                                              support_both,
+                                              confidence,
+                                              'assoc',
+                                              relation,
+                                              desc))
         return rules

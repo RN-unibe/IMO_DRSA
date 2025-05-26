@@ -32,7 +32,7 @@ class ProblemExtender():
                     else:
                         G_extra = np.column_stack([g(x) for g in self._extra_constraints])
 
-                        if G_base.ndim == 1:
+                        if G_base is not None and G_base.ndim == 1:
                             G_base = G_base.reshape(-1, 1)
 
 

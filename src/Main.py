@@ -22,6 +22,6 @@ if __name__ == "__main__":
 
     objectives = [f0, f1]
 
-    engine = IMO_DRSAEngine().fit(problem=problem, objectives=objectives)
+    engine = IMO_DRSAEngine().fit(problem=problem, objectives=objectives, verbose=True)
 
-    success = engine.solve(dm, True)
+    success = engine.run(dm, visualise=True, max_iter=4)

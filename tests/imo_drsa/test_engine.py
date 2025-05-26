@@ -4,20 +4,24 @@ from unittest import TestCase
 import numpy as np
 
 from pymoo.problems import get_problem
+from pymoo.util.plotting import plot
+from pymoo.util.ref_dirs import get_reference_directions
 
-from src.imo_drsa.decision_maker import DummyDM, InteractiveDM
+from src.imo_drsa.decision_maker import DummyDM, InteractiveDM, AutomatedDM
 from src.imo_drsa.engine import IMO_DRSAEngine
+
+np.random.seed(42)
 
 
 class TestIMO_DRSAEngine(TestCase):
-    np.random.seed(42)
+
 
     def test_pareto_front(self):
         prob = get_problem("bnh")
 
         engine = IMO_DRSAEngine().fit(prob)
         #engine.problem.add_constraints()
-        engine.get_pareto_front(n_gen=5) # just to see if it works
+        engine.calculate_pareto_front(n_gen=5)  # just to see if it works
 
         #engine.visualise()
 
@@ -49,9 +53,23 @@ class TestIMO_DRSAEngine(TestCase):
 
 
 
+# ---------------------------------------------------------------------------------------------------------- #
+# Testing it with different test problems
+# ---------------------------------------------------------------------------------------------------------- #
+
+class TestIMO_DRSAEngineProblemSolving(TestCase):
+
+    def setUp(self):
+        self.verbose = True
+        self.visualise = self.verbose
+        self.max_iter = 4
+
+    # ---------------------------------------------------------------------------------------------------------- #
+    # Double-objective problems
+    # ---------------------------------------------------------------------------------------------------------- #
     def test_solve_bnh(self):
-        #Test if the solve function can terminate at all
-        dm = DummyDM()
+        #Test if the solve function can terminate at all and to observe its behaviour
+        dm = AutomatedDM()
         problem = get_problem("bnh")
 
         def f0(x):
@@ -65,47 +83,92 @@ class TestIMO_DRSAEngine(TestCase):
 
         objectives = [f0, f1]
 
-        engine = IMO_DRSAEngine().fit(problem=problem, objectives=objectives)
+        engine = IMO_DRSAEngine().fit(problem=problem, objectives=objectives, verbose=self.verbose)
 
-        success = engine.solve(dm, False, False)
+        success = engine.run(dm, visualise=self.visualise, max_iter=self.max_iter)
 
         self.assertTrue(success)
 
     def test_solve_osy(self):
-        #Test if the solve function can terminate at all
-        dm = DummyDM()
+        #Test if the solve function can terminate at all and to observe its behaviour
+        dm = AutomatedDM()
         problem = get_problem("osy")
 
         def f0(x):
-            """
-            First objective of the OSY problem:
-            f1(x) = -[25*(x1-2)^2 + (x2-2)^2 + (x3-1)^2 + (x4-4)^2 + (x5-1)^2]
-            """
             x1, x2, x3, x4, x5, _ = x
-            return -(
-                    25 * (x1 - 2) ** 2 +
+            return -(25 * (x1 - 2) ** 2 +
                     (x2 - 2) ** 2 +
                     (x3 - 1) ** 2 +
                     (x4 - 4) ** 2 +
-                    (x5 - 1) ** 2
-            )
+                    (x5 - 1) ** 2)
 
         def f1(x):
-            """
-            Second objective of the OSY problem:
-            f2(x) = x1^2 + x2^2 + x3^2 + x4^2 + x5^2 + x6^2
-            """
             return np.sum(np.asarray(x) ** 2)
-
 
 
         objectives = [f0, f1]
 
-        engine = IMO_DRSAEngine().fit(problem=problem, objectives=objectives)
+        engine = IMO_DRSAEngine().fit(problem=problem, objectives=objectives, verbose=self.verbose)
 
-        success = engine.solve(dm, False, False)
+        success = engine.run(dm, visualise=self.visualise, max_iter=self.max_iter)
 
         self.assertTrue(success)
+
+
+    def test_solve_tnk(self):
+        #Test if the solve function can terminate at all and to observe its behaviour
+        dm = AutomatedDM()
+        problem = get_problem("tnk")
+
+        def f0(x):
+            return np.asarray(x[0])
+
+        def f1(x):
+            return np.asarray(x[1])
+
+        objectives = [f0, f1]
+
+        engine = IMO_DRSAEngine().fit(problem=problem, objectives=objectives, verbose=self.verbose)
+
+        success = engine.run(dm, visualise=self.visualise, max_iter=self.max_iter)
+
+        self.assertTrue(success)
+
+
+    # ---------------------------------------------------------------------------------------------------------- #
+    # Triple-objective problems
+    # ---------------------------------------------------------------------------------------------------------- #
+    def test_solve_dtlz1_3_obj(self):
+        #Test if the solve function can terminate at all and to observe its behaviour
+        dm = AutomatedDM()
+        problem = get_problem("dtlz1")
+
+        def dtlz1(n_obj):
+            def g(x):
+                x = np.asarray(x)
+                n_var = x.size
+                k = n_var - n_obj + 1
+                xm = x[-k:]
+                return 100 * (k + np.sum((xm - 0.5) ** 2 - np.cos(20 * np.pi * (xm - 0.5))))
+
+            objectives = []
+            for i in range(n_obj):
+                objectives.append(lambda x, i=i: (0.5 * (1 + g(x))
+                                                      * (np.prod(x[: n_obj - i - 1]) if (n_obj - i - 1) > 0 else 1)
+                                                      * (1 if i == 0 else (1 - x[n_obj - i]))))
+            return objectives
+
+
+        objectives = dtlz1(3)
+
+        engine = IMO_DRSAEngine().fit(problem=problem, objectives=objectives, verbose=self.verbose)
+
+        success = engine.run(dm, visualise=self.visualise, max_iter=self.max_iter)
+
+        self.assertTrue(success)
+
+
+
 
 
 if __name__ == '__main__':
