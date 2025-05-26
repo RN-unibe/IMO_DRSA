@@ -45,13 +45,6 @@ The cycle continues until a satisfactory solution set emerges or convergence cri
 ## Setup
 Run `setup.sh` on MacOS/Linux or `setup.ps1` on Windows.
 
-## Key Files
-
-- `engine.py`: Core iterative engine for IMO-DRSA.
-- `drsa.py`: DRSA computations and rule induction methods.
-- `decision_maker.py`: Decision-maker interfaces and implementations.
-- `problem_extender.py`: Utility to dynamically modify pymoo problems.
-
 ## Sources
 
 - Branke, J., Deb, K., Miettinen, K., & Słowiński, R. (2008). *Multiobjective optimisation: Interactive and evolutionary approaches*. Springer. [Link](https://doi.org/10.1007/978-3-540-88908-3)
