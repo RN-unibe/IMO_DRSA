@@ -151,7 +151,14 @@ class IMO_DRSAEngine():
 
             if pareto_front is None or pareto_front.size == 0:
                 print("Infeasible constraints: please revise.")
-                return False
+                
+                last_state = self.history.pop()
+                self.problem = last_state['problem']
+                pareto_front = last_state['pareto_front']
+                pareto_set = last_state['pareto_set']
+                rules = last_state['rules']
+                print("Last selection undone.")
+                continue
 
             iteration += 1
 
