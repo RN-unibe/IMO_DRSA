@@ -156,9 +156,9 @@ class TestIMO_DRSAEngineProblemSolving(TestCase):
 
         engine = IMO_DRSAEngine().fit(problem=problem, objectives=objectives, verbose=self.verbose)
 
-        #success = engine.run(dm, visualise=self.visualise, max_iter=self.max_iter)
+        success = engine.run(dm, visualise=self.visualise, max_iter=self.max_iter)
 
-        #self.assertTrue(success)
+        self.assertTrue(success)
 
 
 if __name__ == '__main__':

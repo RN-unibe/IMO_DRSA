@@ -1,5 +1,6 @@
 import time
 from copy import deepcopy
+from datetime import datetime
 
 import numpy as np
 
@@ -251,8 +252,10 @@ class IMO_DRSAEngine():
         plt.tight_layout()
 
         if self.to_file:
-            t = time.time()
-            plt.savefig(f"../../data_files/graphs/graph_{t}")
+            now = datetime.now()
+            t = now.strftime("%H.%M.%S")
+            print(t)
+            plt.savefig(f"../../graphs/graph_{t}", format='png')
 
         if self.verbose:
             plt.show()
