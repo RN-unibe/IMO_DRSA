@@ -89,9 +89,7 @@ class IMO_DRSAEngine():
 
             # Induce association rules from current table
             if decision_maker.is_interactive():
-
                 association_rules = self.drsa.find_association_rules()
-                print(association_rules)
                 _, assoc_summary = self.drsa.summarize_association_rules(association_rules)
 
             else:
@@ -138,26 +136,30 @@ class IMO_DRSAEngine():
 
             if decision_maker.is_interactive():
                 undo = input("Do you want to undo the last selection? (y/n): ")
+
                 if undo.lower() == 'y':
                     last_state = self.history.pop()
                     self.problem = last_state['problem']
                     pareto_front = last_state['pareto_front']
                     pareto_set = last_state['pareto_set']
                     rules = last_state['rules']
+
                     print("Last selection undone.")
+
                     continue
 
-
-
+            # If the constraints create a solely infeasible- or empty region, the last selection is undone
             if pareto_front is None or pareto_front.size == 0:
                 print("Infeasible constraints: please revise.")
-                
+
                 last_state = self.history.pop()
                 self.problem = last_state['problem']
                 pareto_front = last_state['pareto_front']
                 pareto_set = last_state['pareto_set']
                 rules = last_state['rules']
+
                 print("Last selection undone.")
+
                 continue
 
             iteration += 1
@@ -257,7 +259,7 @@ class IMO_DRSAEngine():
 
 
 
-    def calculate_pareto_front(self, n_gen=200) -> (np.ndarray, np.ndarray):
+    def calculate_pareto_front(self, n_gen=50) -> (np.ndarray, np.ndarray):
         """
         Compute Pareto-optimal set using NSGA2 algorithm.
 
