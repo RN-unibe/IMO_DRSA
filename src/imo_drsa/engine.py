@@ -94,7 +94,7 @@ class IMO_DRSAEngine():
 
             else:
                 assoc_summary = ""
-                print("hi")
+
             # Classify with DM feedback
             decisions = decision_maker.classify(pareto_set, assoc_summary)
 
