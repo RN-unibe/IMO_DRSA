@@ -57,7 +57,7 @@ class TestIMO_DRSAEngine(TestCase):
 class TestIMO_DRSAEngineProblemSolving(TestCase):
 
     def setUp(self):
-        self.verbose = False
+        self.verbose = True
         self.visualise = self.verbose
         self.max_iter = 4
 

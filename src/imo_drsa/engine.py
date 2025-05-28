@@ -1,11 +1,14 @@
+import json
 import time
 from copy import deepcopy
 from datetime import datetime
+from pathlib import Path
 
 import numpy as np
 
 from typing import Callable, List
 
+import pandas as pd
 from matplotlib import pyplot as plt
 
 from pymoo.algorithms.moo.nsga2 import NSGA2
@@ -54,6 +57,13 @@ class IMO_DRSAEngine():
         self.pareto_front, self.pareto_set = self.calculate_pareto_front()
         self.to_file = to_file
 
+        if to_file:
+            # Setup results directory with timestamp
+            now = datetime.now()
+            self.ts = now.strftime("%Y%m%d_%H%M%S")
+            self.out_dir = Path("../../results") / f"results_{self.ts}"
+            self.out_dir.mkdir(parents=True, exist_ok=True)
+
         return self
 
     def run(self, decision_maker: BaseDM, visualise: bool = False, max_iter: int = 5) -> bool:
@@ -84,7 +94,7 @@ class IMO_DRSAEngine():
             self.history.append(state_backup)
 
             if visualise:
-                self.visualise2D(pareto_front, pareto_set)
+                self.visualise2D(pareto_front, pareto_set, iter=iteration, nr=1)
 
             self.drsa.fit(pareto_set=pareto_set, criteria=P_idx, decision_attribute=decision_attribute)
 
@@ -118,7 +128,7 @@ class IMO_DRSAEngine():
             self.problem.add_constraints(new_constraints)
 
             if visualise:
-                self.visualise2D(pareto_front, pareto_set)
+                self.visualise2D(pareto_front, pareto_set, iter=iteration, nr=2)
 
             # Compute Pareto front under current constraints
             pareto_front, pareto_set = self.calculate_pareto_front()
@@ -174,21 +184,14 @@ class IMO_DRSAEngine():
 
         return False
 
-    def visualise2D(self, new_pareto_front=None,
-                    new_pareto_set=None,
-                    all_kwargs=None,
-                    sub_kwargs=None,
-                    title_front=None,
-                    xlabel_front=None,
-                    ylabel_front=None,
-                    title_set=None,
-                    xlabel_set=None,
-                    ylabel_set=None,
-                    legend=True):
+    def visualise2D(self, new_pareto_front=None, new_pareto_set=None, all_kwargs=None, sub_kwargs=None,
+                    title_front=None, xlabel_front=None, ylabel_front=None, title_set=None, xlabel_set=None,
+                    ylabel_set=None, legend=True, iter=0, nr=1):
         """
         Plot both the Pareto front in decision space and the Pareto set in objective space,
         showing the original (lightgrey) vs. the new subset (red).
 
+        :param iter:
         :param new_pareto_set: Current Pareto set (objectives), shape (n_points, 2).
         :param new_pareto_front: Current Pareto front (decision vars), shape (n_points, 2).
         :param all_kwargs: Style overrides for 'all points'.
@@ -252,10 +255,9 @@ class IMO_DRSAEngine():
         plt.tight_layout()
 
         if self.to_file:
-            now = datetime.now()
-            t = now.strftime("%H.%M.%S")
-            print(t)
-            plt.savefig(f"../../graphs/graph_{t}", format='png')
+            ts = self.ts
+            out_dir = self.out_dir
+            plt.savefig(f"{out_dir}/graph_{iter}.{nr}.png", format='png')
 
         if self.verbose:
             plt.show()
@@ -313,4 +315,39 @@ class IMO_DRSAEngine():
         """
         Write the found pareto_front, pareto_set, and the found rules to file.
         """
-        pass
+        ts = self.ts
+        out_dir = self.out_dir
+
+        pf_path = out_dir / f"pareto_front.csv"
+        ps_path = out_dir / f"pareto_set.csv"
+        rules_path = out_dir / f"rules.json"
+
+        if hasattr(self.pareto_front, 'shape'):
+            df_pf = pd.DataFrame(self.pareto_front,
+                                 columns=[f"x{i}" for i in range(self.pareto_front.shape[1])])
+            df_pf.to_csv(pf_path, index=False)
+
+        if hasattr(self.pareto_set, 'shape'):
+            df_ps = pd.DataFrame(self.pareto_set,
+                                 columns=[f"f{i}" for i in range(self.pareto_set.shape[1])])
+            df_ps.to_csv(ps_path, index=False)
+
+        serializable = []
+        for rule in self.rules:
+            profile, conclusion, support, confidence, kind, direction, description = rule
+            serializable.append({
+                "profile": profile,
+                "conclusion": conclusion,
+                "support": support,
+                "confidence": confidence,
+                "kind": kind,
+                "direction": direction,
+                "description": description
+            })
+        with open(rules_path, 'w') as f:
+            json.dump(serializable, f, indent=4)
+
+        if getattr(self, 'verbose', False):
+            print(f"Saved Pareto front to: {pf_path}")
+            print(f"Saved Pareto set to: {ps_path}")
+            print(f"Saved rules to: {rules_path}")
