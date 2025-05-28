@@ -40,6 +40,12 @@ class BaseDM:
 
     @abc.abstractmethod
     def select_reduct(self, reducts, core):
+        """
+        Select which reduct should be used in the DRSA algorithm.
+
+        :param reducts: list of all reducts, each as a tuple
+        :param core: list of core decision rules
+        """
         pass
 
     @abc.abstractmethod
@@ -87,7 +93,10 @@ class BaseDM:
 
         return pareto
 
-    def is_interactive(self):
+    def is_interactive(self) -> bool:
+        """
+        :return: True if the DM is interactive, False otherwise
+        """
         return False
 
 # ---------------------------------------------------------------------------------------------------------- #
@@ -242,14 +251,18 @@ class AutomatedDM(BaseDM):
 
     def select(self, rules):
         """
-        Automatically select rules based on configured scoring strategy.
+        Choose rules based on configured scoring strategy.
 
         :param rules: list of induced decision rules
         :return: selected subset of rules
         """
         if self.score == 'simple':
             return self.simple_score(rules)
-        return self.select_pareto(rules)
+
+        elif self.score == 'pareto':
+            return self.select_pareto(rules)
+
+        return rules
 
     def select_reduct(self, reducts, core):
         return min(reducts, key=len)
@@ -316,15 +329,19 @@ class DummyDM(BaseDM):
 
     def select(self, rules):
         """
-        Dummy selection: choose rules based on configured scoring strategy.
+        Choose rules based on configured scoring strategy.
 
         :param rules: list of DRSA rules
         :return: selected rules
         """
         if self.score == 'simple':
             return self.simple_score(rules)
+
         elif self.score == 'pareto':
             return self.select_pareto(rules)
+
+        return rules
+
 
     def select_reduct(self, reducts, core):
         return reducts[0]
@@ -340,5 +357,7 @@ class DummyDM(BaseDM):
         """
         if self.round == 3:
             return True
+
         self.round += 1
+
         return False

@@ -65,7 +65,7 @@ class ProblemExtender():
 
 class DummyElementwiseProblem(ElementwiseProblem):
     """
-    A minimal base Problem with no constraints: F(x) = sum(x).
+    A minimal base ElementwiseProblem with no constraints: F(x) = sum(x).
     """
 
     def __init__(self):
@@ -104,6 +104,11 @@ class DummyBatchProblem(Problem):
 class DynamicDummyBatchProblem(Problem):
     """
     To directly set specific objectives and constraints in the test.
+    Here, F, G, and H are directly given.
+
+    Note: This could technically be a elementwise Problem, but it would
+    just set 'out' multiple times, instead of just once, so it doesn't
+    really matter.
     """
 
     def __init__(self, F, H=None, G=None,

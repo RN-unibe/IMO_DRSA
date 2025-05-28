@@ -1,3 +1,4 @@
+import time
 from copy import deepcopy
 
 import numpy as np
@@ -38,7 +39,7 @@ class IMO_DRSAEngine():
         self.pareto_set = None
         self.rules = None
 
-    def fit(self, problem: Problem, objectives: List[Callable] = None, verbose: bool = False):
+    def fit(self, problem: Problem, objectives: List[Callable] = None, verbose: bool = False, to_file=True):
         """
         Fit the IMO-DRSA solver.
 
@@ -50,6 +51,7 @@ class IMO_DRSAEngine():
         self.algorithm = NSGA2(pop_size=20)  # TODO
         self.verbose = verbose
         self.pareto_front, self.pareto_set = self.calculate_pareto_front()
+        self.to_file = to_file
 
         return self
 
@@ -128,6 +130,9 @@ class IMO_DRSAEngine():
                 self.pareto_front = pareto_front
                 self.pareto_set = pareto_set
                 self.rules = rules
+
+                if self.to_file:
+                    self.write_to_file()
 
                 return True
 
@@ -235,7 +240,15 @@ class IMO_DRSAEngine():
             ax_set.legend()
 
         plt.tight_layout()
-        plt.show()
+
+        if self.to_file:
+            t = time.time()
+            plt.savefig(f"../../data_files/graphs/graph_{t}")
+
+        if self.verbose:
+            plt.show()
+
+
 
     def calculate_pareto_front(self, n_gen=200) -> (np.ndarray, np.ndarray):
         """
@@ -282,3 +295,10 @@ class IMO_DRSAEngine():
                             lambda X, i=idx, th=threshold: np.array([self.objectives[i](xi) for xi in X]) - th)
 
         return constraints
+
+
+    def write_to_file(self):
+        """
+        Write the found pareto_front, pareto_set, and the found rules to file.
+        """
+        pass
