@@ -223,7 +223,7 @@ class InteractiveDM(BaseDM):
         for idx, desc in enumerate(descriptions):
             print(f"[{idx}] {desc}")
 
-        prompt = "\nSelect rule(s) to enforce in the next iteration (comma-separated) \n(press Press enter to skip): "
+        prompt = "\nSelect rule(s) to enforce in the next iteration (comma-separated) \n(Press enter to skip): "
 
         while True:
             selection = input(prompt).strip()

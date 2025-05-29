@@ -24,4 +24,4 @@ if __name__ == "__main__":
 
     engine = IMO_DRSAEngine().fit(problem=problem, objectives=objectives, verbose=True)
 
-    success = engine.run(dm, max_iter=4)
+    success = engine.run(dm, max_iter=4, visualise=True)
