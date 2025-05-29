@@ -1,0 +1,122 @@
+[
+    {
+        "profile": {
+            "1": 128.65972547060244,
+            "2": 131.55134780328422
+        },
+        "conclusion": "d >= 2",
+        "support": 0.05263157894736842,
+        "confidence": 1.0,
+        "kind": "certain",
+        "direction": "up",
+        "description": "[CERTAIN] IF f_2 >= 128.65972547060244 AND f_3 >= 131.55134780328422 THEN d >= 2 (support=0.05, confidence=1.00)"
+    },
+    {
+        "profile": {
+            "1": 119.0540369511477,
+            "2": 160.62751710459216
+        },
+        "conclusion": "d >= 2",
+        "support": 0.05263157894736842,
+        "confidence": 1.0,
+        "kind": "certain",
+        "direction": "up",
+        "description": "[CERTAIN] IF f_2 >= 119.0540369511477 AND f_3 >= 160.62751710459216 THEN d >= 2 (support=0.05, confidence=1.00)"
+    },
+    {
+        "profile": {
+            "1": 152.6514411536823,
+            "2": 125.74965371276392
+        },
+        "conclusion": "d >= 2",
+        "support": 0.05263157894736842,
+        "confidence": 1.0,
+        "kind": "certain",
+        "direction": "up",
+        "description": "[CERTAIN] IF f_2 >= 152.6514411536823 AND f_3 >= 125.74965371276392 THEN d >= 2 (support=0.05, confidence=1.00)"
+    },
+    {
+        "profile": {
+            "1": 86.73531874766512,
+            "2": 188.53685111262516
+        },
+        "conclusion": "d >= 2",
+        "support": 0.10526315789473684,
+        "confidence": 1.0,
+        "kind": "certain",
+        "direction": "up",
+        "description": "[CERTAIN] IF f_2 >= 86.73531874766512 AND f_3 >= 188.53685111262516 THEN d >= 2 (support=0.11, confidence=1.00)"
+    },
+    {
+        "profile": {
+            "1": 219.68644700366448,
+            "2": 41.88969649771128
+        },
+        "conclusion": "d >= 2",
+        "support": 0.05263157894736842,
+        "confidence": 1.0,
+        "kind": "certain",
+        "direction": "up",
+        "description": "[CERTAIN] IF f_2 >= 219.68644700366448 AND f_3 >= 41.88969649771128 THEN d >= 2 (support=0.05, confidence=1.00)"
+    },
+    {
+        "profile": {
+            "1": 69.71578447556145,
+            "2": 239.09453084836608
+        },
+        "conclusion": "d >= 2",
+        "support": 0.05263157894736842,
+        "confidence": 1.0,
+        "kind": "certain",
+        "direction": "up",
+        "description": "[CERTAIN] IF f_2 >= 69.71578447556145 AND f_3 >= 239.09453084836608 THEN d >= 2 (support=0.05, confidence=1.00)"
+    },
+    {
+        "profile": {
+            "1": 157.27504509925106,
+            "2": 99.99135411388694
+        },
+        "conclusion": "d >= 2",
+        "support": 0.05263157894736842,
+        "confidence": 1.0,
+        "kind": "certain",
+        "direction": "up",
+        "description": "[CERTAIN] IF f_2 >= 157.27504509925106 AND f_3 >= 99.99135411388694 THEN d >= 2 (support=0.05, confidence=1.00)"
+    },
+    {
+        "profile": {
+            "1": 69.67993683318267,
+            "2": 222.83494587959882
+        },
+        "conclusion": "d >= 2",
+        "support": 0.10526315789473684,
+        "confidence": 1.0,
+        "kind": "certain",
+        "direction": "up",
+        "description": "[CERTAIN] IF f_2 >= 69.67993683318267 AND f_3 >= 222.83494587959882 THEN d >= 2 (support=0.11, confidence=1.00)"
+    },
+    {
+        "profile": {
+            "1": 92.43055013091869,
+            "2": 194.8846746344842
+        },
+        "conclusion": "d >= 2",
+        "support": 0.05263157894736842,
+        "confidence": 1.0,
+        "kind": "certain",
+        "direction": "up",
+        "description": "[CERTAIN] IF f_2 >= 92.43055013091869 AND f_3 >= 194.8846746344842 THEN d >= 2 (support=0.05, confidence=1.00)"
+    },
+    {
+        "profile": {
+            "1": 263.06881619463746,
+            "2": 1.2140987266170118e-05
+        },
+        "conclusion": "d >= 2",
+        "support": 0.05263157894736842,
+        "confidence": 1.0,
+        "kind": "certain",
+        "direction": "up",
+        "description": "[CERTAIN] IF f_2 >= 263.06881619463746 AND f_3 >= 1.2140987266170118e-05 THEN d >= 2 (support=0.05, confidence=1.00)"
+    }
+]

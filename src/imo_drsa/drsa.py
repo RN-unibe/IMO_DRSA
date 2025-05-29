@@ -2,10 +2,8 @@ import operator
 import numpy as np
 import pandas as pd
 
-
 from typing import Dict, List, Tuple
-from itertools import combinations, product
-
+from itertools import combinations
 
 from mlxtend.preprocessing import TransactionEncoder
 from mlxtend.frequent_patterns import apriori, association_rules, fpgrowth

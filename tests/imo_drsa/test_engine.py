@@ -4,8 +4,6 @@ from unittest import TestCase
 import numpy as np
 
 from pymoo.problems import get_problem
-from pymoo.util.plotting import plot
-from pymoo.util.ref_dirs import get_reference_directions
 
 from src.imo_drsa.decision_maker import DummyDM, InteractiveDM, AutomatedDM
 from src.imo_drsa.engine import IMO_DRSAEngine

@@ -1,9 +1,5 @@
-import logging
-import os
-import shutil
-import sys
 import unittest
-from unittest import TestCase, mock
+from unittest import TestCase
 
 import numpy as np
 from pymoo.algorithms.moo.nsga2 import NSGA2

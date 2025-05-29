@@ -1,5 +1,4 @@
 import json
-import time
 from copy import deepcopy
 from datetime import datetime
 from pathlib import Path
@@ -255,7 +254,6 @@ class IMO_DRSAEngine():
         plt.tight_layout()
 
         if self.to_file:
-            ts = self.ts
             out_dir = self.out_dir
             plt.savefig(f"{out_dir}/graph_{iter}.{nr}.png", format='png')
 
@@ -315,7 +313,6 @@ class IMO_DRSAEngine():
         """
         Write the found pareto_front, pareto_set, and the found rules to file.
         """
-        ts = self.ts
         out_dir = self.out_dir
 
         pf_path = out_dir / f"pareto_front.csv"
