@@ -43,17 +43,23 @@ class IMO_DRSAEngine():
         self.pareto_set = None
         self.rules = None
 
-    def fit(self, problem: Problem, objectives: List[Callable] = None, verbose: bool = False, to_file=True):
+    def fit(self, problem: Problem, objectives: List[Callable] = None, verbose: bool = False, to_file=True,
+            pymoo_verbose=False):
         """
         Fit the IMO-DRSA solver.
 
-        :param problem: Problem to be optimised.
-        :param universe: Initial population bounds.
+        :param problem: Problem to be optimised
+        :param objectives: List of objective functions mapping a solution vector to a float.
+        :param verbose: bool if graphs and printouts should be given
+        :param to_file: bool if output should be saved to file
+        :param pymoo_verbose: bool if pymoo notifications should be allowed
+        :return:
         """
         self.problem = self.wrapper.enable_dynamic_constraints(problem=problem)
         self.objectives = objectives
         self.algorithm = NSGA2()  # For initial PF and PS for graphs
         self.verbose = verbose
+        self.pymoo_verbose = pymoo_verbose
         self.pareto_front, self.pareto_set = self.calculate_pareto_front()
         self.algorithm = NSGA2(pop_size=10)  # keep pop_size small. These are all shown to the DM each time!
 
@@ -290,7 +296,7 @@ class IMO_DRSAEngine():
         :return: Tuple of decision variables (pareto_front) and objective values of Pareto front (pareto_set).
         """
 
-        res = minimize(self.problem, self.algorithm , termination=('n_gen', n_gen), verbose=self.verbose)
+        res = minimize(self.problem, self.algorithm , termination=('n_gen', n_gen), verbose=self.pymoo_verbose)
         pareto_front, pareto_set = res.X, res.F
 
         return pareto_front, pareto_set
