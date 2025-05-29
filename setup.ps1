@@ -1,7 +1,9 @@
 # ./setup.ps1
-python -m venv .venv
+
+python3 -m venv .venv
 
 .\.venv\Scripts\Activate.ps1
 
-pip install --upgrade pip
-pip install -r requirements.txt
+python -m ensurepip --upgrade
+python -m pip install --upgrade pip setuptools wheel
+python -m pip install -r requirements.txt

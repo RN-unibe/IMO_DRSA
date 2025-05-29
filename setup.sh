@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if [ ! -d ".venv" ]; then
+if [ ! -d "." ]; then
     python3 -m venv .venv
 fi
 

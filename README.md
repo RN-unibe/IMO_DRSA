@@ -43,7 +43,8 @@ The cycle continues until a satisfactory solution set emerges or convergence cri
 
 
 ## Setup
-Run `setup.sh` on MacOS/Linux or `setup.ps1` on Windows.
+Install the packages in 'requirements.txt'.
+- Note: There are setup files ('setup.ps1', 'setup.sh'). However, they might be faulty. 
 
 ## Sources
 
