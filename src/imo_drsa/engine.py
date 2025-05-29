@@ -111,7 +111,7 @@ class IMO_DRSAEngine():
             # Classify with DM feedback
             decisions = decision_maker.classify(T=pareto_set, X=pareto_front, assoc_rules_summary=assoc_summary)
 
-            if 2 not in decisions  :
+            if 2 not in decisions: # No samples were considered 'good', i.e., none are in class 2
                 print("Trying again...")
                 pareto_front, pareto_set = self.calculate_pareto_front()
                 continue
