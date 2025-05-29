@@ -37,7 +37,6 @@ class IMO_DRSAEngine():
         """
         self.history = []
         self.drsa = DRSA()
-        # self.algorithm = algorithm(**kwargs)
         self.wrapper = ProblemExtender()
         self.pareto_front = None
         self.pareto_set = None
@@ -89,6 +88,8 @@ class IMO_DRSAEngine():
         iteration: int = 0
         while iteration < max_iter:
 
+            print(len(self.pareto_front))
+
             state_backup = {
                 'problem': deepcopy(self.problem),
                 'pareto_front': deepcopy(self.pareto_front),
@@ -127,7 +128,7 @@ class IMO_DRSAEngine():
 
             reduct = decision_maker.select_reduct(reducts, core)
 
-            self.rules = self.drsa.induce_decision_rules(reduct, minimal=False, robust=False)
+            self.rules = self.drsa.induce_decision_rules(reduct, minimal=False)
 
             # DM selects preferred rules
             selected = decision_maker.select(self.rules)
@@ -278,21 +279,23 @@ class IMO_DRSAEngine():
 
 
 
-    def calculate_pareto_front(self, n_gen=50, pop_size=100) -> (np.ndarray, np.ndarray):
+    def calculate_pareto_front(self, n_gen=100, pop_size=100, sample_size=10) -> (np.ndarray, np.ndarray):
         """
         Compute Pareto-optimal set using NSGA2 algorithm.
 
+        :param sample_size:
         :param pop_size:
         :param pop_size: Population size for NSGA2.
         :param n_gen: Number of generations.
 
         :return: Tuple of decision variables (pareto_front) and objective values of Pareto front (pareto_set).
         """
+        pop_size = pop_size if pop_size >= sample_size else 10
         res = minimize(self.problem, NSGA2(pop_size=pop_size), termination=('n_gen', n_gen), verbose=self.pymoo_verbose)
         self.pareto_front, self.pareto_set = res.X, res.F
 
-        sample_k = min(len(self.pareto_front), 10)
-        idx = np.random.choice(len(self.pareto_front), sample_k, replace=False)
+        sample = min(len(self.pareto_front), sample_size)
+        idx = np.random.choice(len(self.pareto_front), sample, replace=False)
 
         pareto_front_sample = self.pareto_front[idx]
         pareto_set_sample = self.pareto_set[idx]
@@ -311,22 +314,14 @@ class IMO_DRSAEngine():
         if elementwise is None:
             elementwise = self.problem.elementwise
 
-        for profile, _, _, _, _, direction, desc in selected_rules:
+        for profile, _, _, _, _, _, desc in selected_rules:
 
             for idx, threshold in profile.items():
-                if direction == 'up':  # f_i(x) >= threshold  ->  threshold - f_i(x) <= 0
-                    if elementwise:
-                        constraints.append(lambda x, i=idx, th=threshold: th - self.objectives[i](x))
-                    else:
-                        constraints.append(
-                            lambda X, i=idx, th=threshold: th - np.array([self.objectives[i](xi) for xi in X]))
-
-                elif direction == 'down':  # f_i(x) <= threshold  ->  f_i(x) - threshold <= 0
-                    if elementwise:
-                        constraints.append(lambda x, i=idx, th=threshold: self.objectives[i](x) - th)
-                    else:
-                        constraints.append(
-                            lambda X, i=idx, th=threshold: np.array([self.objectives[i](xi) for xi in X]) - th)
+                if elementwise:
+                    constraints.append(lambda x, i=idx, th=threshold: self.objectives[i](x) - th)
+                else:
+                    constraints.append(
+                        lambda X, i=idx, th=threshold: np.array([self.objectives[i](xi) for xi in X]) - th)
 
         return constraints
 

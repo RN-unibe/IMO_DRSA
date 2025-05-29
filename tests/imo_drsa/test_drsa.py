@@ -82,11 +82,10 @@ class TestDRSA(TestCase):
         reducts = drsa.find_reducts()
         self.assertEqual(reducts, [(0, 1)])
 
-        rules = drsa.induce_decision_rules(criteria=(0, 1), direction='up', threshold=2)
+        rules = drsa.induce_decision_rules(criteria=(0, 1), threshold=2)
 
         # Must produce at least one rule
         self.assertTrue(len(rules) > 0)
-
 
 class TestDRSA2D(TestCase):
     def setUp(self):
@@ -141,8 +140,7 @@ class TestDRSA1D(TestCase):
 
     def test_induce_decision_rules_not_minimal_or_robust(self):
         # Threshold 2 for 'up' direction
-        rules = self.drsa.induce_decision_rules(criteria=self.criteria, direction='up', threshold=2, minimal=False,
-                                                robust=False)
+        rules = self.drsa.induce_decision_rules(criteria=self.criteria, threshold=2, minimal=False)
         # Expect certain rules for indices 1 and 2, i.e. at least one rule with profile 0:2
         self.assertTrue(any(rule[0].get(0) == 2 for rule in rules if rule[4] == 'certain'))
 
@@ -156,12 +154,14 @@ class TestDecisionRuleFormatting(TestCase):
 
     def test_make_rule_description(self):
         profile = {0: 5, 1: 10}
-        desc = self.drsa.make_rule_description(profile, "d >= 2", support=0.75, confidence=0.80, kind='certain',
-                                               direction='up')
+        desc = self.drsa.make_rule_description(profile, "d >= 2", support=0.75, confidence=0.80, kind='certain')
         self.assertIn("CERTAIN", desc)
-        self.assertIn("f_1 >= 5 AND f_2 >= 10", desc)
+        self.assertIn("f_1(x) <= 5 AND f_2(x) <= 10", desc)
         self.assertIn("support=0.75", desc)
         self.assertIn("confidence=0.80", desc)
+
+
+
 
 
 class TestAssociationRules(TestCase):

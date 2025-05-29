@@ -32,11 +32,13 @@ class DRSA:
         :param criteria: list of column indices in pareto_set
         """
         if pareto_set is not None and decision_attribute is not None and criteria is not None:
-            self.fit(pareto_front=pareto_front, pareto_set=pareto_set, criteria=criteria, decision_attribute=decision_attribute)
+            self.fit(pareto_front=pareto_front, pareto_set=pareto_set, criteria=criteria,
+                     decision_attribute=decision_attribute)
 
     def fit(self, pareto_front=None, pareto_set: np.ndarray = None, criteria: Tuple = None,
-            decision_attribute: np.ndarray = None):
+            decision_attribute: np.ndarray = None, direction="down"):
         """
+        :param direction:
         :param pareto_front:
         :param pareto_set: NumPy array with shape (N, n_var), each row is an object, columns are criteria evaluated on that object
         :param decision_attribute: NumPy array of length N, integer‐encoded decision classes (1, ..., m)
@@ -55,6 +57,8 @@ class DRSA:
         self.m = 0 if decision_attribute is None else (decision_attribute.max())
 
         self.bin_edges = {i: np.percentile(self.pareto_set[:, i], [25, 50, 75]) for i in criteria}
+
+        self.direction = direction
 
         return self
 
@@ -217,12 +221,7 @@ class DRSA:
     # Decision-rule induction
     # ---------------------------------------------------------------------------------------------------------- #
 
-    def make_rule_description(self, profile: Dict,
-                              conclusion: str,
-                              support: float,
-                              confidence: float,
-                              kind: str,
-                              direction: str) -> str:
+    def make_rule_description(self, profile: Dict, conclusion: str, support: float, confidence: float, kind: str) -> str:
         """
         Build human-readable rule description.
 
@@ -231,52 +230,44 @@ class DRSA:
         :param support: support of the decision
         :param confidence: confidence of the decision
         :param kind: type of rule
-        :param direction: direction of the rule
-
         :return: rule description
         """
         conds = []
 
         for idx, val in profile.items():
-            op = ">=" if direction == 'up' else "<="
-            conds.append(f"f_{idx + 1} {op} {val}")
+            op = ">=" if self.direction == 'up' else "<="
+            conds.append(f"f_{idx + 1}(x) {op} {val}")
 
         premise = ' AND '.join(conds)
 
         return (f"[{kind.upper()}] IF {premise} THEN {conclusion} (support={support:.2f}, confidence={confidence:.2f})")
 
-    def induce_decision_rules(self, criteria: Tuple = None,
-                              direction: str = 'up',
-                              threshold: int = 2,
-                              minimal: bool = True,
-                              robust: bool = True) -> List[Tuple]:
+    def induce_decision_rules(self, criteria: Tuple = None, threshold: int = 2, minimal: bool = True) -> List[Tuple]:
         """
         Induce certain and possible decision rules for Cl>=threshold or Cl<=threshold.
         direction: 'up' or 'down'.
 
         :param criteria: list of column indices in T to use as P subset of F = {f1,...,fn}
-        :param direction: str direction of union, either 'up' or 'down'.
         :param threshold:int of class
 
         :return: list of induced decision rules of form (profile, concl, support, confidence, kind, direction, desc)
         """
         crit = criteria or self.criteria_full
-        if direction not in ('up', 'down'):
-            raise ValueError("direction must be 'up' or 'down'")
+
 
         # Select appropriate approximations
-        if direction == 'up':
+        if self.direction == 'up':
             lower = self.lower_approx_up(crit, threshold)
             upper = self.upper_approx_up(crit, threshold)
             comp = operator.ge
             conf_fn = lambda mask: (self.decision_attribute[mask] >= threshold).mean()
-            concl = f"d >= {threshold}"
         else:
             lower = self.lower_approx_down(crit, threshold)
             upper = self.upper_approx_down(crit, threshold)
             comp = operator.le
             conf_fn = lambda mask: (self.decision_attribute[mask] <= threshold).mean()
-            concl = f"d <= {threshold}"
+
+        concl = "x is 'good'"
 
         seen = set()
         rules = []
@@ -291,17 +282,15 @@ class DRSA:
                 support = mask.mean()
                 confidence = conf_fn(mask)
 
-                desc = self.make_rule_description(profile, concl, support, confidence, kind, direction)
+                desc = self.make_rule_description(profile, concl, support, confidence, kind)
 
                 if desc not in seen:
                     seen.add(desc)
-                    rule = (profile, concl, support, confidence, kind, direction, desc)
-                    if self.is_robust(rule, direction):
+                    rule = (profile, concl, support, confidence, kind, self.direction, desc)
+                    if self.is_robust(rule):
                         rules.append(rule)
 
-        # Filter robust: at least one base
-        if robust:
-            rules = [r for r in rules if self.is_robust(r, direction)]
+
 
         # Filter minimal: no weaker rule subsumes it
         if minimal:
@@ -309,32 +298,31 @@ class DRSA:
             minimal_rules = []
 
             for r in rules:
-                if not any(self.subsumes(r2, r, direction) for r2 in rules if r2 != r):
+                if not any(self.subsumes(r2, r) for r2 in rules if r2 != r):
                     minimal_rules.append(r)
 
             rules = minimal_rules
 
         return rules
 
-    @staticmethod
-    def subsumes(r1, r2, direction='up'):
-        p1, _, _, _, _, _, _ = r1
-        p2, _, _, _, _, _, _ = r2
+    def subsumes(self, r1, r2):
+        p1 = r1[0]
+        p2 = r2[0]
         # r1 subsumes r2 if p1 is weaker (i.e., thresholds for >= lower, <= higher)
         for i in p1:
             if i not in p2:
                 return False
-            if direction == 'up' and p1[i] < p2[i]:
+            if self.direction == 'up' and p1[i] < p2[i]:
                 return False
-            if direction == 'down' and p1[i] > p2[i]:
+            if self.direction == 'down' and p1[i] > p2[i]:
                 return False
 
         return True
 
-    def is_robust(self, rule, direction='up'):
+    def is_robust(self, rule):
         profile, _, _, _, kind, _, _ = rule
         mask = np.ones(self.N, dtype=bool)
-        cmp_op = operator.ge if direction == 'up' else operator.le
+        cmp_op = operator.ge if self.direction == 'up' else operator.le
 
         for i, val in profile.items():
             mask &= cmp_op(self.pareto_set[:, i], val)
