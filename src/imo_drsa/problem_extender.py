@@ -1,3 +1,4 @@
+from copy import deepcopy
 from typing import Callable, List
 from types import MethodType
 
@@ -15,9 +16,11 @@ class ProblemExtender():
         and then appends all constraints in problem._extra_constraints.
         """
 
+
         if not hasattr(problem, "_orig_evaluate"):
-            problem._orig_evaluate = problem._evaluate
-            problem._extra_constraints = None
+            problem_copy = deepcopy(problem)
+            problem_copy._orig_evaluate = problem_copy._evaluate
+            problem_copy._extra_constraints = None
 
             def _evaluate(self, x, out, *args, **kwargs):
                 self._orig_evaluate(x, out, *args, **kwargs)
@@ -40,7 +43,7 @@ class ProblemExtender():
                         axis = 0 if self.elementwise else 1
                         out["G"] = np.concatenate([G_base, G_extra], axis=axis)
 
-            problem._evaluate = MethodType(_evaluate, problem)
+            problem_copy._evaluate = MethodType(_evaluate, problem_copy)
 
             def add_constraints(self, constraints: List[Callable]):
                 """
@@ -54,7 +57,9 @@ class ProblemExtender():
                 self._extra_constraints.extend(constraints)
                 self.n_ieq_constr = getattr(self, "n_ieq_constr", 0) + len(constraints)
 
-            problem.add_constraints = MethodType(add_constraints, problem)
+            problem_copy.add_constraints = MethodType(add_constraints, problem_copy)
+
+            return problem_copy
 
         return problem
 

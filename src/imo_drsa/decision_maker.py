@@ -1,5 +1,6 @@
 import abc
 import numpy as np
+import pandas as pd
 
 from pymoo.indicators.hv import HV
 
@@ -17,11 +18,12 @@ class BaseDM:
     """
 
     @abc.abstractmethod
-    def classify(self, T, assoc_rules_summary):
+    def classify(self, T: np.ndarray, X: np.ndarray, assoc_rules_summary: str=None):
         """
         Classify Pareto sample into 'good' (2) vs 'other' (1) via median-split.
         Chooses the objective whose split yields the most balanced classes.
 
+        :param X:
         :param T: array of shape (n_samples, n_objectives)
         :param assoc_rules_summary: str the summary of the association rules
         :return: array of labels (1 or 2) for each sample in T
@@ -109,55 +111,89 @@ class InteractiveDM(BaseDM):
     and decision rules.
     """
 
-    def classify(self, T: np.ndarray, assoc_rules_summary:str) -> np.ndarray:
+    def classify(self, T: np.ndarray, X: np.ndarray, assoc_rules_summary: str = None) -> np.ndarray:
         """
         Prompt the user to classify Pareto-optimal samples into 'good' or 'other'.
         Displays association rules and current Pareto sample for context.
 
+        :param X:
         :param T: objective values of Pareto-optimal samples (n_samples, n_objectives)
         :param assoc_rules_summary: association rules for context
         :return: array of labels (2 for 'good', 1 for 'other')
         """
-        print("\nAssociation Rules:")
-        print(assoc_rules_summary)
+        if assoc_rules_summary is None or assoc_rules_summary == "" or assoc_rules_summary == "\n":
+            print("\nIt appears there is no strong or relevant correlation between the objective function.")
+        else:
+            print("\nAssociation Rules:")
+            print(assoc_rules_summary)
 
-        print("\nCurrent Pareto Sample (objective values):")
+        data = []
         for idx, obj in enumerate(T):
-            print(f"[{idx}] {obj}")
+            x_vals = np.atleast_1d(X[idx])
+            o_vals = np.atleast_1d(obj)
 
-        selection = input("\nSelect indices of 'good' solutions (comma-separated): ")
-        good_idxs = {int(i) for i in selection.split(",") if i.strip().isdigit()}
+            fmt = lambda seq: "[" + ", ".join(f"{v:.4f}" for v in seq) + "]"
+
+            var_str = fmt(x_vals)
+            obj_str = fmt(o_vals)
+
+            row = {"# ": f"[{idx}]", " [x_1, ..., x_n]": var_str, " [f_1(x), ..., f_m(x)]": obj_str}
+            data.append(row)
+
+        df = pd.DataFrame(data)
+
+        print("\nCurrent Pareto sample (X) and their evaluation (F(X)):")
+        print(df.to_string(justify='middle',index=False))
+
+        prompt = "\nSelect indices (#) of samples with 'good' evaluation (comma-separated) \n(Press Enter if none are satisfactory): \n"
+
+        while True:
+            selection = input(prompt).strip()
+            # empty → user skips
+            if not selection:
+                good_idxs = set()
+                break
+
+            tokens = [tok.strip() for tok in selection.split(',') if tok.strip()]
+            invalids = []
+            good_idxs = set()
+
+            for tok in tokens:
+                if not tok.isdigit():
+                    invalids.append(tok)
+                    continue
+                i = int(tok)
+                if 0 <= i < len(T):
+                    good_idxs.add(i)
+                else:
+                    invalids.append(tok)
+
+            if invalids:
+                print("Invalid input. Please enter valid sample indices (0 to "
+                      f"{len(T) - 1}), separated by commas.")
+                # loop back, but do *not* reprint the table
+                continue
+
+            # all tokens were valid
+            break
 
         labels = np.ones(len(T), dtype=int)
         for i in good_idxs:
             if 0 <= i < len(T):
                 labels[i] = 2
+
         return labels
 
-    def select(self, rules):
-        """
-        Prompt the user to select which induced DRSA rules to enforce next iteration.
-
-        :param rules: list of induced decision rules
-        :return: subset of rules selected by the user
-        """
-        print("\nInduced Decision Rules:")
-        descriptions = DRSA.explain_rules(rules, verbose=False)
-        for idx, desc in enumerate(descriptions):
-            print(f"[{idx}] {desc}")
-
-        selection = input("\nSelect rule indices to enforce (comma-separated): ")
-        chosen = []
-        for token in selection.split(","):
-            if token.strip().isdigit():
-                i = int(token)
-                if 0 <= i < len(rules):
-                    chosen.append(rules[i])
-        return chosen
 
     def select_reduct(self, reducts, core):
-        if len(reducts) > 1:
+        assert reducts is not None, "Reducts list is empty, iteration was not skipped!"
+
+        if len(reducts) == 0:
+            return reducts
+
+        elif len(reducts) > 1:
             print("Available Reducts:")
+
             for idx, red in enumerate(reducts):
                 print(f"[{idx}] {red}")
 
@@ -166,10 +202,59 @@ class InteractiveDM(BaseDM):
             selected_idx = input("Select reduct by index (default 0): ").strip()
             selected_idx = int(selected_idx) if selected_idx.isdigit() else 0
             selected_reduct = reducts[selected_idx]
+
         else:
             selected_reduct = reducts[0]
 
         return selected_reduct
+
+    def select(self, rules):
+        """
+        Prompt the user to select which induced DRSA rules to enforce next iteration.
+
+        :param rules: list of induced decision rules
+        :return: subset of rules selected by the user
+        """
+        assert rules is not None, "Rule list is empty, iteration was not skipped!"
+
+        # 1) Show the available rules
+        print("\nInduced Decision Rules:")
+        descriptions = DRSA.explain_rules(rules, verbose=False)
+        for idx, desc in enumerate(descriptions):
+            print(f"[{idx}] {desc}")
+
+        prompt = "\nSelect rule(s) to enforce in the next iteration (comma-separated) \n(press Press enter to skip): "
+
+        while True:
+            selection = input(prompt).strip()
+
+            if not selection:
+                return []
+
+            tokens = [tok.strip() for tok in selection.split(',')]
+            chosen = []
+            invalids = []
+
+            for tok in tokens:
+                if not tok.isdigit():
+                    invalids.append(tok)
+                    continue
+
+                i = int(tok)
+                if 0 <= i < len(rules):
+                    rule = rules[i]
+                    if rule not in chosen:
+                        chosen.append(rule)
+                else:
+                    invalids.append(tok)
+
+            if invalids:
+                print(f"Invalid selection(s): {', '.join(invalids)}.  Please try again.\n")
+                continue
+
+            return chosen
+
+
 
     def is_satisfied(self, X, T: np.ndarray, rules) -> bool:
         """
@@ -180,9 +265,23 @@ class InteractiveDM(BaseDM):
         :param rules: enforced DRSA rules (unused)
         :return: True if the user selects a solution to end, False otherwise
         """
-        print("\nNew Pareto Sample:")
+        data = []
         for idx, obj in enumerate(T):
-            print(f"[{idx}] {obj}")
+            x_vals = np.atleast_1d(X[idx])
+            o_vals = np.atleast_1d(obj)
+
+            fmt = lambda seq: "[" + ", ".join(f"{v:.4f}" for v in seq) + "]"
+
+            var_str = fmt(x_vals)
+            obj_str = fmt(o_vals)
+
+            row = {"# ": f"[{idx}]", " [x_1, ..., x_n]": var_str, " [f_1(x), ..., f_m(x)]": obj_str}
+            data.append(row)
+
+        df = pd.DataFrame(data)
+
+        print("\nNew Pareto sample (X) and their evaluation (F(X)):")
+        print(df.to_string(justify='middle', index=False))
 
         selection = input("\nAre you satisfied with this selection? (y, n): ")
         if selection.strip().lower() == 'y':
@@ -220,11 +319,12 @@ class AutomatedDM(BaseDM):
         self.prev_hv = None
         self.round = 0
 
-    def classify(self, T: np.ndarray, assoc_rules_summary) -> np.ndarray:
+    def classify(self, T: np.ndarray, X=None, assoc_rules_summary=None) -> np.ndarray:
         """
         Automatically classify samples via median-split on objectives for balanced labels,
         compute initial hypervolume indicator.
 
+        :param X:
         :param T: objective values of Pareto-optimal samples
         :param assoc_rules_summary: association rules (unused)
         :return: labels array where 2 indicates better than median
@@ -316,10 +416,11 @@ class DummyDM(BaseDM):
         self.round = 0
         self.score = 'pareto'
 
-    def classify(self, T, assoc_rules_summary):
+    def classify(self, T, X=None, assoc_rules_summary=None):
         """
         Dummy classification: always returns label 1 for all samples.
 
+        :param X:
         :param T: objective values (unused)
         :param assoc_rules_summary: (unused)
         :return: label array of ones
@@ -334,11 +435,7 @@ class DummyDM(BaseDM):
         :param rules: list of DRSA rules
         :return: selected rules
         """
-        if self.score == 'simple':
-            return self.simple_score(rules)
 
-        elif self.score == 'pareto':
-            return self.select_pareto(rules)
 
         return rules
 

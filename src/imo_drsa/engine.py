@@ -4,6 +4,7 @@ from datetime import datetime
 from pathlib import Path
 
 import numpy as np
+np.row_stack = np.vstack # Because pymoo uses np.vstack which is deprecated
 
 from typing import Callable, List
 
@@ -51,9 +52,11 @@ class IMO_DRSAEngine():
         """
         self.problem = self.wrapper.enable_dynamic_constraints(problem=problem)
         self.objectives = objectives
-        self.algorithm = NSGA2(pop_size=20)  # TODO
+        self.algorithm = NSGA2()  # For initial PF and PS for graphs
         self.verbose = verbose
         self.pareto_front, self.pareto_set = self.calculate_pareto_front()
+        self.algorithm = NSGA2(pop_size=10)  # keep pop_size small. These are all shown to the DM each time!
+
         self.to_file = to_file
 
         if to_file:
@@ -77,7 +80,7 @@ class IMO_DRSAEngine():
 
         P_idx = tuple([i for i in range(0, len(self.objectives))])
         decision_attribute = None
-        pareto_front, pareto_set = self.pareto_front, self.pareto_set
+        pareto_front, pareto_set = self.calculate_pareto_front()
         rules = []
 
         iteration: int = 0
@@ -99,21 +102,25 @@ class IMO_DRSAEngine():
 
             # Induce association rules from current table
             if decision_maker.is_interactive():
-                association_rules = self.drsa.find_association_rules()
+                association_rules = self.drsa.find_association_rules(min_support=0.2, min_confidence=0.9)
                 _, assoc_summary = self.drsa.summarize_association_rules(association_rules)
 
             else:
                 assoc_summary = ""
 
             # Classify with DM feedback
-            decisions = decision_maker.classify(pareto_set, assoc_summary)
+            decisions = decision_maker.classify(T=pareto_set, X=pareto_front, assoc_rules_summary=assoc_summary)
+
+            if 2 not in decisions  :
+                print("Trying again...")
+                pareto_front, pareto_set = self.calculate_pareto_front()
+                continue
 
             # Find a reduct and induce decision rules
-            self.drsa.fit(pareto_set, P_idx, decisions)
+            self.drsa.fit(pareto_set=pareto_set, criteria=P_idx, decision_attribute=decisions)
             reducts = self.drsa.find_reducts()
 
             core = self.drsa.core(reducts)
-
             reduct = decision_maker.select_reduct(reducts, core)
 
             rules = self.drsa.induce_decision_rules(reduct, minimal=False, robust=False)
@@ -121,6 +128,11 @@ class IMO_DRSAEngine():
             # DM selects preferred rules
             selected = decision_maker.select(rules)
             # print(selected)
+
+            if len(selected) == 0:
+                print("Trying again...")
+                pareto_front, pareto_set = self.calculate_pareto_front()
+                continue
 
             # Generate new constraints from selected rules
             new_constraints = self.generate_constraints(selected)
@@ -131,6 +143,14 @@ class IMO_DRSAEngine():
 
             # Compute Pareto front under current constraints
             pareto_front, pareto_set = self.calculate_pareto_front()
+
+            if decision_maker.is_interactive():
+                undo = input("Do you want to undo the last selection? (y/n): ")
+
+                if undo.lower() == 'y':
+                    pareto_front, pareto_set, rules = self.undo_last()
+                    continue
+
             # Ask DM if current solutions are satisfactory
             if decision_maker.is_satisfied(pareto_front, pareto_set, rules):
                 print("DM is satisfied. Terminating Process")
@@ -144,31 +164,11 @@ class IMO_DRSAEngine():
 
                 return True
 
-            if decision_maker.is_interactive():
-                undo = input("Do you want to undo the last selection? (y/n): ")
-
-                if undo.lower() == 'y':
-                    last_state = self.history.pop()
-                    self.problem = last_state['problem']
-                    pareto_front = last_state['pareto_front']
-                    pareto_set = last_state['pareto_set']
-                    rules = last_state['rules']
-
-                    print("Last selection undone.")
-
-                    continue
-
             # If the constraints create a solely infeasible- or empty region, the last selection is undone
             if pareto_front is None or pareto_front.size == 0:
                 print("Infeasible constraints: please revise.")
 
-                last_state = self.history.pop()
-                self.problem = last_state['problem']
-                pareto_front = last_state['pareto_front']
-                pareto_set = last_state['pareto_set']
-                rules = last_state['rules']
-
-                print("Last selection undone.")
+                pareto_front, pareto_set, rules = self.undo_last()
 
                 continue
 
@@ -182,6 +182,23 @@ class IMO_DRSAEngine():
         self.rules = rules
 
         return False
+
+    def undo_last(self):
+        """
+        Undoes the last iteration.
+
+        :return: the last state of pareto_front, pareto_set, and rules
+        """
+
+        last_state = self.history.pop()
+        self.problem = last_state['problem']
+        pareto_front = last_state['pareto_front']
+        pareto_set = last_state['pareto_set']
+        rules = last_state['rules']
+
+        print("Last selection undone.")
+
+        return pareto_front, pareto_set, rules
 
     def visualise2D(self, new_pareto_front=None, new_pareto_set=None, all_kwargs=None, sub_kwargs=None,
                     title_front=None, xlabel_front=None, ylabel_front=None, title_set=None, xlabel_set=None,
@@ -272,7 +289,7 @@ class IMO_DRSAEngine():
         :return: Tuple of decision variables (pareto_front) and objective values of Pareto front (pareto_set).
         """
 
-        res = minimize(self.problem, NSGA2(pop_size=20) , termination=('n_gen', n_gen), verbose=self.verbose)
+        res = minimize(self.problem, self.algorithm , termination=('n_gen', n_gen), verbose=self.verbose)
         pareto_front, pareto_set = res.X, res.F
 
         return pareto_front, pareto_set

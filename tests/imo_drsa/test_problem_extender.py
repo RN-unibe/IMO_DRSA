@@ -192,9 +192,9 @@ class TestProblemExtenderBNH(TestCase):
 
     def test_enable_dynamic_constraints_idempotent(self):
         # Wrapping twice should not re-wrap
-        eval_before = self.problem._evaluate
-        ProblemExtender.enable_dynamic_constraints(self.problem)
-        eval_after = self.problem._evaluate
+        eval_before = self.ext_problem._evaluate
+        ProblemExtender.enable_dynamic_constraints(self.ext_problem)
+        eval_after = self.ext_problem._evaluate
         self.assertIs(eval_before, eval_after)
 
     def test_add_constraints_method_exists(self):

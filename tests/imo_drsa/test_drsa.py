@@ -17,7 +17,7 @@ class TestDRSA(TestCase):
                            [2, 5]])
         self.d = np.array([1, 1, 3, 2, 2])
         # Initialize DRSA with full criteria
-        self.drsa = DRSA(self.T, criteria=(0, 1), decision_attribute=self.d)
+        self.drsa = DRSA(pareto_set=self.T, criteria=(0, 1), decision_attribute=self.d)
 
     def test_positive_cone(self):
         pos = self.drsa.positive_cone((0, 1))
@@ -68,7 +68,7 @@ class TestDRSA(TestCase):
         d = np.array([1, 1, 3, 2, 2])
 
         drsa = DRSA()
-        drsa.fit(T, criteria=(0, 1), decision_attribute=d)
+        drsa.fit(pareto_set=T, criteria=(0, 1), decision_attribute=d)
 
         low_up = drsa.lower_approx_up((0, 1), threshold=2)
         up_up = drsa.upper_approx_up((0, 1), threshold=2)
@@ -88,13 +88,13 @@ class TestDRSA(TestCase):
         self.assertTrue(len(rules) > 0)
 
 
-class TestDRSA2D(unittest.TestCase):
+class TestDRSA2D(TestCase):
     def setUp(self):
         # Simple 2D dataset
         self.pareto_set = np.array([[1, 2], [2, 1]])
         self.dec_attr = np.array([1, 2])
         self.criteria = (0, 1)
-        self.drsa = DRSA(self.pareto_set, self.criteria, self.dec_attr)
+        self.drsa = DRSA(pareto_set=self.pareto_set, criteria=self.criteria, decision_attribute=self.dec_attr)
 
     def test_positive_cone(self):
         expected = np.array([[True, False], [False, True]])
@@ -123,13 +123,13 @@ class TestDRSA2D(unittest.TestCase):
         np.testing.assert_array_equal(upper, upper_expected)
 
 
-class TestDRSA1D(unittest.TestCase):
+class TestDRSA1D(TestCase):
     def setUp(self):
         # Simple 1D dataset
         self.pareto_set = np.array([[1], [2], [3]])
         self.dec_attr = np.array([1, 2, 3])
         self.criteria = (0,)
-        self.drsa = DRSA(self.pareto_set, self.criteria, self.dec_attr)
+        self.drsa = DRSA(pareto_set=self.pareto_set, criteria=self.criteria, decision_attribute=self.dec_attr)
 
     def test_quality_and_reducts(self):
         # Full quality should be 1.0
@@ -147,12 +147,12 @@ class TestDRSA1D(unittest.TestCase):
         self.assertTrue(any(rule[0].get(0) == 2 for rule in rules if rule[4] == 'certain'))
 
 
-class TestDecisionRuleFormatting(unittest.TestCase):
+class TestDecisionRuleFormatting(TestCase):
     def setUp(self):
         self.pareto_set = np.array([[1]])
         self.dec_attr = np.array([1])
         self.criteria = (0,)
-        self.drsa = DRSA(self.pareto_set, self.criteria, self.dec_attr)
+        self.drsa = DRSA(pareto_set=self.pareto_set, criteria=self.criteria, decision_attribute=self.dec_attr)
 
     def test_make_rule_description(self):
         profile = {0: 5, 1: 10}
@@ -164,7 +164,7 @@ class TestDecisionRuleFormatting(unittest.TestCase):
         self.assertIn("confidence=0.80", desc)
 
 
-class TestAssociationRules(unittest.TestCase):
+class TestAssociationRules(TestCase):
 
     def test_find_association_rules_multiple_criteria(self):
         # Three‐objective dataset
@@ -176,7 +176,7 @@ class TestAssociationRules(unittest.TestCase):
             [2, 5, 3],
         ])
         d = np.array([1, 1, 3, 2, 2])
-        drsa = DRSA().fit(T, (0, 1, 2), d)
+        drsa = DRSA().fit(pareto_set=T, criteria=(0, 1, 2), decision_attribute=d)
 
         rules = drsa.find_association_rules(min_support=0.1, min_confidence=0.8)
 
@@ -193,7 +193,7 @@ class TestAssociationRules(unittest.TestCase):
 
         T = np.array([row1, row2]).T
 
-        drsa = DRSA().fit(T, (0, 1), None)
+        drsa = DRSA().fit(pareto_set=T, criteria=(0, 1), decision_attribute=None)
 
         rules = drsa.find_association_rules(min_support=0.1, min_confidence=0.8)
 
@@ -208,7 +208,6 @@ class TestAssociationRules(unittest.TestCase):
 
         self.assertTrue(expected1 in summary)
         self.assertTrue(expected2 not in summary)
-
 
 
 

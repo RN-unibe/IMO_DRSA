@@ -23,17 +23,21 @@ class DRSA:
     :param m: Number of decision classes.
     """
 
-    def __init__(self, pareto_set: np.ndarray = None, criteria: Tuple = None, decision_attribute: np.ndarray = None):
+    def __init__(self, pareto_front=None, pareto_set: np.ndarray = None, criteria: Tuple = None,
+                 decision_attribute: np.ndarray = None):
         """
+        :param pareto_front:
         :param pareto_set: NumPy array with shape (N, n_var), each row is an object, columns are criteria evaluated on that object
         :param decision_attribute: NumPy array of length N, integer‐encoded decision classes (1, ..., m)
         :param criteria: list of column indices in pareto_set
         """
         if pareto_set is not None and decision_attribute is not None and criteria is not None:
-            self.fit(pareto_set, criteria, decision_attribute)
+            self.fit(pareto_front=pareto_front, pareto_set=pareto_set, criteria=criteria, decision_attribute=decision_attribute)
 
-    def fit(self, pareto_set: np.ndarray, criteria: Tuple, decision_attribute: np.ndarray = None):
+    def fit(self, pareto_front=None, pareto_set: np.ndarray = None, criteria: Tuple = None,
+            decision_attribute: np.ndarray = None):
         """
+        :param pareto_front:
         :param pareto_set: NumPy array with shape (N, n_var), each row is an object, columns are criteria evaluated on that object
         :param decision_attribute: NumPy array of length N, integer‐encoded decision classes (1, ..., m)
         :param criteria: list of column indices in pareto_set
@@ -41,6 +45,7 @@ class DRSA:
         assert pareto_set is not None, "Pareto set must not be empty."
         assert criteria is not None, "Criteria must not be provided."
 
+        self.pareto_front = pareto_front
         self.pareto_set = pareto_set
         self.decision_attribute = decision_attribute
 
@@ -414,19 +419,19 @@ class DRSA:
         else:
             freq = apriori(df, min_support=min_support, use_colnames=True)
 
-
-        #print(freq)
-        # 4. Generate association rules
-        raw_rules = association_rules(freq, metric="confidence", min_threshold=min_confidence)
         assoc_rules = []
-        for _, row in raw_rules.iterrows():
-            ant = row['antecedents']
-            con = row['consequents']
-            sup = row['support']
-            conf = row['confidence']
+        # 4. Generate association rules
+        if freq is not None and len(freq) > 0 :
+            raw_rules = association_rules(freq, metric="confidence", min_threshold=min_confidence)
 
-            desc = self.make_association_rule_description(ant, con, sup, conf)
-            assoc_rules.append((ant, con, sup, conf, desc))
+            for _, row in raw_rules.iterrows():
+                ant = row['antecedents']
+                con = row['consequents']
+                sup = row['support']
+                conf = row['confidence']
+
+                desc = self.make_association_rule_description(ant, con, sup, conf)
+                assoc_rules.append((ant, con, sup, conf, desc))
 
         return assoc_rules
 

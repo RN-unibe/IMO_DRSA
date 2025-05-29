@@ -8,7 +8,6 @@ from pymoo.problems import get_problem
 from src.imo_drsa.decision_maker import DummyDM, InteractiveDM, AutomatedDM
 from src.imo_drsa.engine import IMO_DRSAEngine
 
-np.random.seed(42)
 
 
 class TestIMO_DRSAEngine(TestCase):
@@ -49,15 +48,15 @@ class TestIMO_DRSAEngine(TestCase):
 
 
 # ---------------------------------------------------------------------------------------------------------- #
-# Testing it with different test problems
+# Testing it with different test problems with automated responses
 # ---------------------------------------------------------------------------------------------------------- #
-
 class TestIMO_DRSAEngineProblemSolving(TestCase):
 
     def setUp(self):
         self.verbose = False
         self.visualise = self.verbose
         self.max_iter = 4
+        np.random.seed(42)
 
     # ---------------------------------------------------------------------------------------------------------- #
     # Double-objective problems
@@ -157,6 +156,7 @@ class TestIMO_DRSAEngineProblemSolving(TestCase):
         success = engine.run(dm, visualise=self.visualise, max_iter=self.max_iter)
 
         self.assertTrue(success)
+
 
 
 if __name__ == '__main__':
