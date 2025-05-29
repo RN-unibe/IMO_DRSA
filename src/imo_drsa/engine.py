@@ -143,12 +143,12 @@ class IMO_DRSAEngine():
             new_constraints = self.generate_constraints(selected)
             self.problem.add_constraints(new_constraints)
 
-            if visualise:
-                self.visualise2D(pareto_front_sample, pareto_set_sample, iter=iteration, nr=2)
-
             # Compute Pareto front under current constraints
             pareto_front_sample, pareto_set_sample = self.calculate_pareto_front()
 
+
+            if visualise:
+                self.visualise2D(pareto_front_sample, pareto_set_sample, iter=iteration, nr=2)
 
             if decision_maker.is_interactive():
                 undo = input("Do you want to undo the last selection? (y/n): ")
