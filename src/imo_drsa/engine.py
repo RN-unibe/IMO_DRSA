@@ -118,9 +118,10 @@ class IMO_DRSAEngine():
 
             # Find a reduct and induce decision rules
             self.drsa.fit(pareto_set=pareto_set, criteria=P_idx, decision_attribute=decisions)
-            reducts = self.drsa.find_reducts()
 
+            reducts = self.drsa.find_reducts()
             core = self.drsa.core(reducts)
+
             reduct = decision_maker.select_reduct(reducts, core)
 
             rules = self.drsa.induce_decision_rules(reduct, minimal=False, robust=False)

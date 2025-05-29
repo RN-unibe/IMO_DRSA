@@ -283,7 +283,7 @@ class InteractiveDM(BaseDM):
         print("\nNew Pareto sample (X) and their evaluation (F(X)):")
         print(df.to_string(justify='middle', index=False))
 
-        selection = input("\nAre you satisfied with this selection? (y, n): ")
+        selection = input("\nAre you satisfied with this selection and would like to terminate? (y, n): ")
         if selection.strip().lower() == 'y':
             return True
 
