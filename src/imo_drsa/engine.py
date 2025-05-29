@@ -57,11 +57,9 @@ class IMO_DRSAEngine():
         """
         self.problem = self.wrapper.enable_dynamic_constraints(problem=problem)
         self.objectives = objectives
-        self.algorithm = NSGA2()  # For initial PF and PS for graphs
         self.verbose = verbose
         self.pymoo_verbose = pymoo_verbose
-        self.pareto_front, self.pareto_set = self.calculate_pareto_front()
-        self.algorithm = NSGA2(pop_size=10)  # keep pop_size small. These are all shown to the DM each time!
+        self.pareto_front, self.pareto_set = None, None
 
         self.to_file = to_file
 
@@ -86,25 +84,24 @@ class IMO_DRSAEngine():
 
         P_idx = tuple([i for i in range(0, len(self.objectives))])
         decision_attribute = None
-        pareto_front, pareto_set = self.calculate_pareto_front()
-        rules = []
+        pareto_front_sample, pareto_set_sample = self.calculate_pareto_front(pop_size=100)
 
         iteration: int = 0
         while iteration < max_iter:
 
             state_backup = {
                 'problem': deepcopy(self.problem),
-                'pareto_front': deepcopy(pareto_front),
-                'pareto_set': deepcopy(pareto_set),
-                'rules': deepcopy(rules)
+                'pareto_front': deepcopy(self.pareto_front),
+                'pareto_set': deepcopy(self.pareto_front),
+                'rules': deepcopy(self.rules)
             }
             
             self.history.append(state_backup)
 
             if visualise:
-                self.visualise2D(pareto_front, pareto_set, iter=iteration, nr=1)
+                self.visualise2D(pareto_front_sample, pareto_set_sample, iter=iteration, nr=1)
 
-            self.drsa.fit(pareto_set=pareto_set, criteria=P_idx, decision_attribute=decision_attribute)
+            self.drsa.fit(pareto_set=pareto_set_sample, criteria=P_idx, decision_attribute=decision_attribute)
 
             # Induce association rules from current table
             if decision_maker.is_interactive():
@@ -115,30 +112,30 @@ class IMO_DRSAEngine():
                 assoc_summary = ""
 
             # Classify with DM feedback
-            decisions = decision_maker.classify(T=pareto_set, X=pareto_front, assoc_rules_summary=assoc_summary)
+            decisions = decision_maker.classify(T=pareto_set_sample, X=pareto_front_sample, assoc_rules_summary=assoc_summary)
 
             if 2 not in decisions: # No samples were considered 'good', i.e., none are in class 2
                 print("Trying again...")
-                pareto_front, pareto_set = self.calculate_pareto_front()
+                pareto_front_sample, pareto_set_sample = self.calculate_pareto_front()
                 continue
 
             # Find a reduct and induce decision rules
-            self.drsa.fit(pareto_set=pareto_set, criteria=P_idx, decision_attribute=decisions)
+            self.drsa.fit(pareto_set=pareto_set_sample, criteria=P_idx, decision_attribute=decisions)
 
             reducts = self.drsa.find_reducts()
             core = self.drsa.core(reducts)
 
             reduct = decision_maker.select_reduct(reducts, core)
 
-            rules = self.drsa.induce_decision_rules(reduct, minimal=False, robust=False)
+            self.rules = self.drsa.induce_decision_rules(reduct, minimal=False, robust=False)
 
             # DM selects preferred rules
-            selected = decision_maker.select(rules)
+            selected = decision_maker.select(self.rules)
             # print(selected)
 
             if len(selected) == 0:
                 print("Trying again...")
-                pareto_front, pareto_set = self.calculate_pareto_front()
+                pareto_front_sample, pareto_set_sample = self.calculate_pareto_front()
                 continue
 
             # Generate new constraints from selected rules
@@ -146,25 +143,23 @@ class IMO_DRSAEngine():
             self.problem.add_constraints(new_constraints)
 
             if visualise:
-                self.visualise2D(pareto_front, pareto_set, iter=iteration, nr=2)
+                self.visualise2D(pareto_front_sample, pareto_set_sample, iter=iteration, nr=2)
 
             # Compute Pareto front under current constraints
-            pareto_front, pareto_set = self.calculate_pareto_front()
+            pareto_front_sample, pareto_set_sample = self.calculate_pareto_front()
+
 
             if decision_maker.is_interactive():
                 undo = input("Do you want to undo the last selection? (y/n): ")
 
                 if undo.lower() == 'y':
-                    pareto_front, pareto_set, rules = self.undo_last()
+                    pareto_front_sample, pareto_set_sample, rules = self.undo_last()
                     continue
 
             # Ask DM if current solutions are satisfactory
-            if decision_maker.is_satisfied(pareto_front, pareto_set, rules):
+            if decision_maker.is_satisfied(pareto_front_sample, pareto_set_sample, self.rules):
                 print("DM is satisfied. Terminating Process")
 
-                self.pareto_front = pareto_front
-                self.pareto_set = pareto_set
-                self.rules = rules
 
                 if self.to_file:
                     self.write_to_file()
@@ -172,10 +167,10 @@ class IMO_DRSAEngine():
                 return True
 
             # If the constraints create a solely infeasible- or empty region, the last selection is undone
-            if pareto_front is None or pareto_front.size == 0:
+            if pareto_front_sample is None or pareto_front_sample.size == 0:
                 print("Infeasible constraints: please revise.")
 
-                pareto_front, pareto_set, rules = self.undo_last()
+                pareto_front_sample, pareto_set_sample, self.rules = self.undo_last()
 
                 continue
 
@@ -184,9 +179,6 @@ class IMO_DRSAEngine():
         print('Maximum iterations reached.')
         print('Terminating now.')
 
-        self.pareto_front = pareto_front
-        self.pareto_set = pareto_set
-        self.rules = rules
 
         return False
 
@@ -199,13 +191,13 @@ class IMO_DRSAEngine():
 
         last_state = self.history.pop()
         self.problem = last_state['problem']
-        pareto_front = last_state['pareto_front']
-        pareto_set = last_state['pareto_set']
-        rules = last_state['rules']
+        self.pareto_front = last_state['pareto_front']
+        self.pareto_set = last_state['pareto_set']
+        self.rules = last_state['rules']
 
         print("Last selection undone.")
 
-        return pareto_front, pareto_set, rules
+        return self.pareto_front, self.pareto_set, self.rules
 
     def visualise2D(self, new_pareto_front=None, new_pareto_set=None, all_kwargs=None, sub_kwargs=None,
                     title_front=None, xlabel_front=None, ylabel_front=None, title_set=None, xlabel_set=None,
@@ -286,20 +278,26 @@ class IMO_DRSAEngine():
 
 
 
-    def calculate_pareto_front(self, n_gen=50) -> (np.ndarray, np.ndarray):
+    def calculate_pareto_front(self, n_gen=50, pop_size=100) -> (np.ndarray, np.ndarray):
         """
         Compute Pareto-optimal set using NSGA2 algorithm.
 
+        :param pop_size:
         :param pop_size: Population size for NSGA2.
         :param n_gen: Number of generations.
 
         :return: Tuple of decision variables (pareto_front) and objective values of Pareto front (pareto_set).
         """
+        res = minimize(self.problem, NSGA2(pop_size=pop_size), termination=('n_gen', n_gen), verbose=self.pymoo_verbose)
+        self.pareto_front, self.pareto_set = res.X, res.F
 
-        res = minimize(self.problem, self.algorithm , termination=('n_gen', n_gen), verbose=self.pymoo_verbose)
-        pareto_front, pareto_set = res.X, res.F
+        sample_k = min(len(self.pareto_front), 10)
+        idx = np.random.choice(len(self.pareto_front), sample_k, replace=False)
 
-        return pareto_front, pareto_set
+        pareto_front_sample = self.pareto_front[idx]
+        pareto_set_sample = self.pareto_set[idx]
+
+        return pareto_front_sample, pareto_set_sample
 
     def generate_constraints(self, selected_rules, elementwise=None) -> List[Callable]:
         """
