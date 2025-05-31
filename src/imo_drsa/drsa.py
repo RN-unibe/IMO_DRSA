@@ -52,7 +52,7 @@ class DRSA:
         :param criteria: Tuple of column indices in pareto_set
         :param decision_attribute: NumPy array of length N, integer‐encoded decision classes (1, ..., m)
         :param direction: str direction of the union
-
+        :return self
         """
 
         self.pareto_front = pareto_front
@@ -63,7 +63,6 @@ class DRSA:
 
         self.N = 0 if pareto_set is None else pareto_set.shape[0]
         self.m = 0 if decision_attribute is None else (decision_attribute.max())
-
 
         self.direction = direction
 

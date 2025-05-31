@@ -52,7 +52,7 @@ class IMO_DRSAEngine():
         :param visualise: bool if graphs should be given
         :param to_file: bool if output should be saved to file
         :param pymoo_verbose: bool if pymoo notifications should be allowed
-        :return:
+        :return: self
         """
         self.problem = self.wrapper.enable_dynamic_constraints(problem=problem)
         self.objectives = objectives
