@@ -195,6 +195,9 @@ class DRSA:
             if reducts:
                 break
 
+        if len(reducts) == 0:
+            return [self.criteria]
+
         return reducts
 
 
@@ -299,9 +302,9 @@ class DRSA:
         if minimal:
             minimal_rules = []
 
-            for r in rules:
-                if not any(self.subsumes(r2, r) for r2 in rules if r2 != r):
-                    minimal_rules.append(r)
+            for r1 in rules:
+                if not any(self.subsumes(r1, r2) for r2 in rules if r2 != r1):
+                    minimal_rules.append(r1)
 
             rules = minimal_rules
 
@@ -315,21 +318,38 @@ class DRSA:
         but one has a weaker premise.
 
         :param r1: Tuple rule to check
-        :param r2: Tuple rule which migh subsume r1
+        :param r2: Tuple rule which might subsume r1
         :return: True if premise of r1 is weaker than premise of r2, but has the same outcome, False otherwise.
         """
         assert self.is_fit, "DRSA has not been fit."
+
         p1 = r1[0]
         p2 = r2[0]
-        # r1 subsumes r2 if p1 is weaker (i.e., thresholds for >= lower, <= higher)
-        for i in p1:
-            if i not in p2:
-                return False
-            if self.direction == 'down' and p1[i] < p2[i]:
-                return False
-            if self.direction == 'up' and p1[i] > p2[i]:
-                return False
+        concl1 = r1[1]
+        concl2 = r2[1]
 
+        if concl1 != concl2:
+            return False
+
+        keys1 = set(p1.keys())
+        keys2 = set(p2.keys())
+        if not (keys2 <= keys1):
+            return False
+
+        if self.direction == "up":
+            for i in keys2:
+                if p2[i] > p1[i]:
+                    return False
+
+        elif self.direction == "down":
+            for i in keys2:
+                if p2[i] < p1[i]:
+                    return False
+
+        else:
+            raise ValueError(f"Unknown direction: {self.direction!r}. Must be 'up' or 'down'.")
+
+        # If we passed both checks, r2 indeed subsumes r1:
         return True
 
     def is_robust(self, rule):

@@ -350,7 +350,7 @@ class IMO_DRSAEngine():
                         constraints.append(lambda x, i=idx, th=threshold: th - self.objectives[i](x))
                     else:
                         constraints.append(
-                            lambda X, i=idx, th=threshold: np.array(th - [self.objectives[i](xi) for xi in X]))
+                            lambda X, i=idx, th=threshold: np.array([th - self.objectives[i](xi) for xi in X]))
 
         return constraints
 
