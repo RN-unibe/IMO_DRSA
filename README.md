@@ -59,7 +59,8 @@ You can find an example implementation in the `Main.py`. Here is a step-by-step 
 ---
 
 ```
-Total size of pareto front: 100
+
+Total size of Pareto Front: 50
 
 Association Rules:
 If objective 1 is higher, objective 2 tends to be lower (support=0.50, confidence=1.00)
@@ -69,58 +70,52 @@ If objective 2 is lower, objective 1 tends to be higher (support=0.50, confidenc
 
 Current Pareto sample (X) and their evaluation (F(X)):
  #   [x_1, ..., x_n]  [f_1(x), ..., f_m(x)]
-[0] [0.0450, 0.0450]      [0.0162, 49.1037]
-[1] [0.8431, 0.7236]      [4.9378, 35.5672]
-[2] [1.9280, 2.3881]     [37.6803, 16.2593]
-[3] [3.3985, 2.9221]      [80.3547, 6.8824]
-[4] [0.3294, 0.4216]      [1.1450, 42.7761]
-[5] [0.1722, 0.0855]      [0.1478, 47.4604]
-[6] [2.1595, 1.8487]     [32.3243, 17.9993]
-[7] [2.7820, 2.5157]     [56.2735, 11.0911]
-[8] [4.7558, 3.0000]     [126.4708, 4.0596]
-[9] [1.6017, 1.8102]     [23.3691, 21.7233]
+[0] [2.4962, 2.5982]     [51.9286, 12.0372]
+[1] [4.1919, 2.9246]     [104.5028, 4.9602]
+[2] [2.5820, 2.2457]     [46.8401, 13.4328]
+[3] [1.6819, 2.2446]     [31.4684, 18.6019]
+[4] [3.0748, 2.8409]      [70.1006, 8.3681]
+[5] [2.0797, 2.1940]     [36.5552, 16.4018]
+[6] [1.8228, 2.0680]     [30.3968, 18.6913]
+[7] [1.9738, 2.5005]     [40.5939, 15.4052]
+[8] [1.4911, 1.7112]     [20.6065, 23.1285]
+[9] [1.5662, 2.2383]     [29.8522, 19.4177]
 
 Select indices (#) of samples with 'good' evaluation (comma-separated) 
 (Press Enter if none are satisfactory): 
-9
+8
+
+
 ```
 ![alt text](plot_1_readme.png "Plot showing the first iteration of the Pareto Front and the given sample subset.")
 
 ```
 Based on your selection, the following Decision Rules were induced:
-[0] [CERTAIN] IF f_1(x) <= 0.016212545612520765 AND f_2(x) <= 49.103704728167436 THEN x is 'good' (support=0.10, confidence=1.00)
-[1] [CERTAIN] IF f_1(x) <= 4.9378262588686095 AND f_2(x) <= 35.56717100668167 THEN x is 'good' (support=0.10, confidence=1.00)
-[2] [CERTAIN] IF f_1(x) <= 37.68031799723687 AND f_2(x) <= 16.25932901605619 THEN x is 'good' (support=0.10, confidence=1.00)
-[3] [CERTAIN] IF f_1(x) <= 80.35472428429821 AND f_2(x) <= 6.882381468132873 THEN x is 'good' (support=0.10, confidence=1.00)
-[4] [CERTAIN] IF f_1(x) <= 1.14500702821959 AND f_2(x) <= 42.77613722837148 THEN x is 'good' (support=0.10, confidence=1.00)
-[5] [CERTAIN] IF f_1(x) <= 0.1478147826455799 AND f_2(x) <= 47.46042632034455 THEN x is 'good' (support=0.10, confidence=1.00)
-[6] [CERTAIN] IF f_1(x) <= 32.324252428047444 AND f_2(x) <= 17.999250919740916 THEN x is 'good' (support=0.10, confidence=1.00)
-[7] [CERTAIN] IF f_1(x) <= 56.273519334162614 AND f_2(x) <= 11.091148611918758 THEN x is 'good' (support=0.10, confidence=1.00)
-[8] [CERTAIN] IF f_1(x) <= 126.47080005082924 AND f_2(x) <= 4.059630326864898 THEN x is 'good' (support=0.10, confidence=1.00)
-[9] [CERTAIN] IF f_1(x) <= 23.369050856258713 AND f_2(x) <= 21.72327047368539 THEN x is 'good' (support=0.10, confidence=1.00)
+[0] [CERTAIN] IF f_1(x) <= 20.6064711278722 THEN x is 'good' (support=0.10, confidence=1.00)
 
 Select rule(s) to enforce in the next iteration (comma-separated) 
-(Press enter to skip): 9
-
-Total size of pareto front: 1000
+(Press enter to skip): 0
+Total size of Pareto Front: 24
 
 Current Pareto sample (X) and their evaluation (F(X)):
  #   [x_1, ..., x_n]  [f_1(x), ..., f_m(x)]
-[0] [1.7081, 1.7058]     [23.3098, 21.6882]
-[1] [1.7098, 1.7049]     [23.3191, 21.6837]
-[2] [1.7042, 1.7049]     [23.2427, 21.7206]
-[3] [1.7043, 1.7056]     [23.2535, 21.7153]
-[4] [1.7088, 1.7077]     [23.3446, 21.6714]
-[5] [1.7076, 1.7091]     [23.3469, 21.6703]
-[6] [1.7039, 1.7069]     [23.2666, 21.7090]
-[7] [1.7054, 1.7067]     [23.2847, 21.7003]
-[8] [1.7032, 1.7064]     [23.2503, 21.7169]
-[9] [1.7085, 1.7092]     [23.3614, 21.6633]
+[0] [0.4712, 0.2217]      [1.0846, 43.3423]
+[1] [0.8413, 0.2462]      [3.0737, 39.8931]
+[2] [1.0530, 1.3266]     [11.4744, 29.0729]
+[3] [0.6145, 0.8874]      [4.6603, 36.1461]
+[4] [0.0650, 0.0582]      [0.0305, 48.7751]
+[5] [0.4413, 0.1324]      [0.8492, 44.4752]
+[6] [1.0570, 1.1684]      [9.9300, 30.2281]
+[7] [1.4574, 1.1797]     [14.0630, 27.1447]
+[8] [0.1422, 0.2374]      [0.3063, 46.2805]
+[9] [1.3492, 1.8011]     [20.2565, 23.5617]
 Do you want to undo the last selection? (y/n): n
 
 Would you like to terminate? (y, n): y
-
 DM is satisfied. Terminating Process
+Saved Pareto front to: ..\..\results\results_20250531_191744\pareto_front.csv
+Saved Pareto set to: ..\..\results\results_20250531_191744\pareto_set.csv
+Saved rules to: ..\..\results\results_20250531_191744\rules.json
 ```
 ![alt text](plot_2_readme.png "Plot showing the second (and final) iteration of the Pareto Front and the given sample subset.")
 
