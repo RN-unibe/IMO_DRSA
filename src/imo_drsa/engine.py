@@ -94,6 +94,8 @@ class IMO_DRSAEngine():
                 'problem': deepcopy(self.problem),
                 'X_pareto': deepcopy(self.X_pareto),
                 'F_pareto': deepcopy(self.F_pareto),
+                'X_pareto_sample' : deepcopy(X_pareto_sample),
+                'F_pareto_sample' : deepcopy(F_pareto_sample),
                 'rules': deepcopy(self.rules)
             }
 
@@ -121,9 +123,7 @@ class IMO_DRSAEngine():
                 continue
 
             # Find a reduct and induce decision rules
-            self.drsa.fit(X_pareto=X_pareto_sample,
-                          F_pareto= -F_pareto_sample, #IMPORTANT: Needs to be negated, since this is the result of minimzation!
-                          criteria=P_idx,
+            self.drsa.fit(X_pareto=X_pareto_sample, F_pareto_gain_type=-F_pareto_sample, criteria=P_idx,
                           decision_attribute=decision_attribute)
 
             reducts = self.drsa.find_reducts()
@@ -152,7 +152,7 @@ class IMO_DRSAEngine():
             # If the constraints create a solely infeasible- or empty region, the last selection is undone
             if X_pareto_sample is None or X_pareto_sample.size == 0:
                 print("Infeasible constraints, Pareto Front was empty. Please try again.")
-                self.front_sample, self.set_sample, self.rules = self.undo_last()
+                X_pareto_sample, F_pareto_sample = self.undo_last()
                 iteration += 1
                 continue
 
@@ -166,7 +166,7 @@ class IMO_DRSAEngine():
                 undo = input("Do you want to undo the last selection? (y/n): ")
 
                 if undo.lower() == 'y':
-                    self.front_sample, self.set_sample, self.rules = self.undo_last()
+                    X_pareto_sample, F_pareto_sample = self.undo_last()
                     iteration += 1
                     continue
 
@@ -195,13 +195,15 @@ class IMO_DRSAEngine():
 
         last_state = self.history.pop()
         self.problem = last_state['problem']
-        self.X_pareto = last_state['pareto_front']
-        self.F_pareto = last_state['pareto_set']
+        self.X_pareto = last_state['X_pareto']
+        self.F_pareto = last_state['F_pareto']
         self.rules = last_state['rules']
+        X_pareto_sample = last_state['X_pareto_sample']
+        F_pareto_sample = last_state['F_pareto_sample']
 
         print("Last selection undone.")
 
-        return self.X_pareto, self.F_pareto, self.rules
+        return X_pareto_sample, F_pareto_sample
 
     def visualise2D(self, new_pareto_front=None,
                     new_pareto_set=None,
@@ -290,8 +292,8 @@ class IMO_DRSAEngine():
         plt.show()
 
     def calculate_pareto_front(self, n_gen=100,
-                               pop_size=1000,
-                               sample_size=100) -> (np.ndarray, np.ndarray):
+                               pop_size=200,
+                               sample_size=10) -> (np.ndarray, np.ndarray):
         """
         Compute Pareto-optimal set using NSGA2 algorithm.
 
@@ -301,8 +303,6 @@ class IMO_DRSAEngine():
 
         :return: Tuple of decision variables (pareto_front) and objective values of Pareto front (pareto_set).
         """
-
-
         res = minimize(self.problem, NSGA2(pop_size=pop_size), termination=('n_gen', n_gen), verbose=self.pymoo_verbose)
         new_X_pareto, new_F_pareto = res.X, res.F
 
@@ -339,10 +339,10 @@ class IMO_DRSAEngine():
 
             for idx, threshold in profile.items():
                 if elementwise:
-                    constraints.append(lambda x, i=idx, th=threshold: self.objectives[i](x) - th)
+                    constraints.append(lambda x, i=idx, th=threshold: th - self.objectives[i](x))
                 else:
                     constraints.append(
-                        lambda X, i=idx, th=threshold: np.array([self.objectives[i](xi) for xi in X]) - th)
+                        lambda X, i=idx, th=threshold: np.array(th - [self.objectives[i](xi) for xi in X]))
 
         return constraints
 

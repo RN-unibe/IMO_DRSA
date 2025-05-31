@@ -14,7 +14,7 @@ class DRSA:
     Dominance-Based Rough Set Approach (DRSA) for multicriteria sorting and rule induction.
 
 
-    :param pareto_set: Data matrix of shape (N, n_features).
+    :param F_pareto_gain_type: Data matrix of shape (N, n_features).
     :param decision_attribute: Decision array of length N, encoded as integers 1 to m.
     :param criteria_full: Tuple of all criterion indices.
     :param criteria_reduct: Tuple of current reduct criteria indices.
@@ -23,29 +23,32 @@ class DRSA:
     :param m: Number of decision classes.
     """
 
-    def __init__(self, pareto_front=None,
-                 pareto_set: np.ndarray = None,
+    def __init__(self, X_pareto=None,
+                 F_pareto_gain_type: np.ndarray = None,
                  criteria: Tuple = None,
                  decision_attribute: np.ndarray = None,
                  direction="up"):
         """
-        :param pareto_front: NumPy array with shape (N, n_var), each row is an object
-        :param pareto_set: NumPy array with shape (N, n_var), each row is an object, columns are criteria evaluated on that object
+        :param X_pareto: NumPy array with shape (N, n_var), each row is an object
+        :param F_pareto_gain_type: NumPy array with shape (N, n_var), each row is an object, columns are criteria evaluated on that object
         :param criteria: Tuple of column indices in pareto_set
         :param decision_attribute: NumPy array of length N, integer‐encoded decision classes (1, ..., m)
         :param direction: str direction of the union
         """
-        self.fit(X_pareto=pareto_front, F_pareto=pareto_set, criteria=criteria, decision_attribute=decision_attribute,
+        self.fit(X_pareto=X_pareto,
+                 F_pareto_gain_type=F_pareto_gain_type,
+                 criteria=criteria,
+                 decision_attribute=decision_attribute,
                  direction=direction)
 
     def fit(self, X_pareto=None,
-            F_pareto: np.ndarray = None,
+            F_pareto_gain_type: np.ndarray = None,
             criteria: Tuple = None,
             decision_attribute: np.ndarray = None,
             direction="up"):
         """
         :param X_pareto: NumPy array with shape (N, n_var), each row is an object
-        :param F_pareto: NumPy array with shape (N, n_var), each row is an object, columns are criteria evaluated on that object
+        :param F_pareto_gain_type: NumPy array with shape (N, n_var), each row is an object, columns are criteria evaluated on that object
         :param criteria: Tuple of column indices in pareto_set
         :param decision_attribute: NumPy array of length N, integer‐encoded decision classes (1, ..., m)
         :param direction: str direction of the union
@@ -53,12 +56,12 @@ class DRSA:
         """
 
         self.pareto_front = X_pareto
-        self.pareto_set = F_pareto
+        self.pareto_set = F_pareto_gain_type
         self.decision_attribute = decision_attribute
 
         self.criteria = criteria
 
-        self.N = 0 if F_pareto is None else F_pareto.shape[0]
+        self.N = 0 if F_pareto_gain_type is None else F_pareto_gain_type.shape[0]
         self.m = 0 if decision_attribute is None else (decision_attribute.max())
 
         self.direction = direction
@@ -238,12 +241,14 @@ class DRSA:
         conds = []
 
         for idx, val in profile.items():
-            op = ">=" if self.direction == 'up' else "<="
-            conds.append(f"f_{idx + 1}(x) {op} {val}")
+            #op = ">=" if self.direction == 'up' else "<="
+            op = "<=" if self.direction == 'up' else ">=" # Still gain type!!!!!
+            conds.append(f"f_{idx + 1}(x) {op} {-val}") # Still gain type!!!!!
 
         premise = ' AND '.join(conds)
 
         return (f"[{kind.upper()}] IF {premise} THEN {conclusion} (support={support:.2f}, confidence={confidence:.2f})")
+
 
     def induce_decision_rules(self, criteria: Tuple = None,
                               threshold: int = 2,
@@ -376,11 +381,16 @@ class DRSA:
     # Association-rule mining
     # ---------------------------------------------------------------------------------------------------------- #
     @staticmethod
-    def find_association_rules(F_pareto: np.ndarray, criteria: Tuple, min_support: float = 0.1,
-                               min_confidence: float = 0.8, use_fp: bool = True) -> List[Tuple]:
+    def find_association_rules(F_pareto: np.ndarray,
+                               criteria: Tuple,
+                               min_support: float = 0.1,
+                               min_confidence: float = 0.8,
+                               use_fp: bool = True) -> List[Tuple]:
         """
         Mine association rules among objectives (criteria) in the Pareto set.
         Only criterion bins are used—no decision classes involved.
+
+        NOTE: Here, the criteria do NOT NEED to be GAIN-TYPE!
 
         :param F_pareto: NumPy array with shape (N, n_var), each row is an object, columns are criteria evaluated on that object
         :param criteria: Tuple of column indices in pareto_set

@@ -17,7 +17,7 @@ class TestDRSA(TestCase):
                            [2, 5]])
         self.d = np.array([1, 1, 3, 2, 2])
         # Initialize DRSA with full criteria
-        self.drsa = DRSA(pareto_set=self.T, criteria=(0, 1), decision_attribute=self.d)
+        self.drsa = DRSA(F_pareto_gain_type=self.T, criteria=(0, 1), decision_attribute=self.d)
 
     def test_positive_cone(self):
         pos = self.drsa.positive_cone((0, 1))
@@ -71,7 +71,7 @@ class TestDRSA(TestCase):
         d = np.array([1, 1, 3, 2, 2])
 
         drsa = DRSA()
-        drsa.fit(F_pareto=T, criteria=(0, 1), decision_attribute=d)
+        drsa.fit(F_pareto_gain_type=T, criteria=(0, 1), decision_attribute=d)
 
         low_up = drsa.lower_approx_up((0, 1), threshold=2)
         up_up = drsa.upper_approx_up((0, 1), threshold=2)
@@ -97,7 +97,7 @@ class TestDRSA2D(TestCase):
         self.pareto_set = np.array([[1, 2], [2, 1]])
         self.dec_attr = np.array([1, 2])
         self.criteria = (0, 1)
-        self.drsa = DRSA(pareto_set=self.pareto_set, criteria=self.criteria, decision_attribute=self.dec_attr)
+        self.drsa = DRSA(F_pareto_gain_type=self.pareto_set, criteria=self.criteria, decision_attribute=self.dec_attr)
 
     def test_positive_cone(self):
         expected = np.array([[True, False], [False, True]])
@@ -132,7 +132,7 @@ class TestDRSA1D(TestCase):
         self.pareto_set = np.array([[1], [2], [3]])
         self.dec_attr = np.array([1, 2, 3])
         self.criteria = (0,)
-        self.drsa = DRSA(pareto_set=self.pareto_set, criteria=self.criteria, decision_attribute=self.dec_attr)
+        self.drsa = DRSA(F_pareto_gain_type=self.pareto_set, criteria=self.criteria, decision_attribute=self.dec_attr)
 
     def test_quality_and_reducts(self):
         # Full quality should be 1.0

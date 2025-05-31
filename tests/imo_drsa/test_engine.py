@@ -208,10 +208,10 @@ class TestFaultySelections(TestCase):
         crit = (0, 1)
 
         d = np.ones(10)
-        d[2], d[5], d[9] = 2, 2, 2
+        d[2], d[5] = 2, 2
 
         drsa = DRSA()
-        drsa.fit(X_pareto=X, F_pareto=T, criteria=crit, decision_attribute=d)
+        drsa.fit(X_pareto=X, F_pareto_gain_type=-T, criteria=crit, decision_attribute=d)
         rules = drsa.induce_decision_rules()
 
         chosen = dm.select(rules)
