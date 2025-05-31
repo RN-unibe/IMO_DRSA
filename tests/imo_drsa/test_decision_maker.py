@@ -24,24 +24,6 @@ class TestInteractiveDM(TestCase):
         self.assertListEqual(out.tolist(), expected_out.tolist())
 
 
-    @patch('builtins.input', return_value='\n')
-    def test_select_reduct(self, mock_input):
-        dm = InteractiveDM()
-        T = np.array([1, 1, 2, 1])
-        X = np.array([1, 1, 2, 1])
-
-        out = np.array([1, 1, 2, 1])
-
-        #out = dm.select_reduct(reducts, core)
-
-
-    @patch('builtins.input', return_value='\n')
-    def test_select(self, mock_input):
-        dm = InteractiveDM()
-        T = np.array([1, 1, 1, 1])
-        X = np.array([1, 1, 1, 1])
-
-
 
 # ---------------------------------------------------------------------------------------------------------- #
 # Automated DM tests
@@ -60,8 +42,6 @@ class TestAutomatedDM(TestCase):
 
         self.assertEqual(len(chosen), 1)
         self.assertEqual(chosen[0], rules[0])
-
-        DRSA.explain_rules(chosen)
 
 
 

@@ -18,10 +18,11 @@ class TestIMO_DRSAEngine(TestCase):
         prob = get_problem("bnh")
 
         engine = IMO_DRSAEngine().fit(prob)
-        # engine.problem.add_constraints()
-        engine.calculate_pareto_front(n_gen=5)  # just to see if it works
+        X, T = engine.calculate_pareto_front(n_gen=5)  # just to see if it works
 
-        # engine.visualise()
+        self.assertTrue(X is not None)
+        self.assertTrue(T is not None)
+
 
     def test_generate_constraints(self):
         # Single rule with thresholds matching x[0]=1, x[1]=2
@@ -163,7 +164,8 @@ class TestIMO_DRSAEngineProblemSolving(TestCase):
 class TestFaultySelections(TestCase):
 
     @patch('builtins.input', return_value='2,5')
-    def test_empty_pareto_front(self, mock_input):
+    @patch('builtins.print')
+    def test_empty_pareto_front(self, mock_input, mock_print):
         dm = InteractiveDM()
         problem = get_problem("bnh")
 
@@ -178,7 +180,7 @@ class TestFaultySelections(TestCase):
 
         objectives = [f0, f1]
 
-        engine = IMO_DRSAEngine().fit(problem=problem, objectives=objectives, verbose=False)
+        engine = IMO_DRSAEngine().fit(problem=problem, objectives=objectives, verbose=False, visualise=False, to_file=False)
 
         X = np.array([[2.6309, 2.8100],
             [0.9031, 0.7224],
@@ -205,23 +207,20 @@ class TestFaultySelections(TestCase):
         crit = (0, 1)
 
         d = np.ones(10)
-        d[2] = 2
-        d[5] = 2
+        d[2], d[5] = 2, 2
 
         drsa = DRSA()
         drsa.fit(pareto_front=X, pareto_set=T, criteria=crit, decision_attribute=d)
-
         rules = drsa.induce_decision_rules()
-        DRSA.explain_rules(rules)
 
         chosen = dm.select(rules)
-        DRSA.explain_rules(chosen)
 
-        new_constraints = engine.generate_constraints(rules)
-
+        new_constraints = engine.generate_constraints(chosen)
         engine.problem.add_constraints(new_constraints)
+        X, T = engine.calculate_pareto_front()
 
-        _, _ = engine.calculate_pareto_front()
+        self.assertTrue(X is None)
+        self.assertTrue(T is None)
 
 
 

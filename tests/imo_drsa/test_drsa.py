@@ -175,13 +175,11 @@ class TestAssociationRules(TestCase):
             [4, 6, 5],
             [2, 5, 3],
         ])
-        d = np.array([1, 1, 3, 2, 2])
-        drsa = DRSA().fit(pareto_set=T, criteria=(0, 1, 2), decision_attribute=d)
 
-        rules = drsa.find_association_rules(min_support=0.1, min_confidence=0.8)
+        rules = DRSA.find_association_rules(pareto_set=T, criteria=(0, 1, 2), min_support=0.1, min_confidence=0.8)
 
 
-        summary, s = drsa.summarize_association_rules(rules)
+        summary, s = DRSA.summarize_association_rules(rules)
 
         print(s)
 
@@ -193,12 +191,10 @@ class TestAssociationRules(TestCase):
 
         T = np.array([row1, row2]).T
 
-        drsa = DRSA().fit(pareto_set=T, criteria=(0, 1), decision_attribute=None)
-
-        rules = drsa.find_association_rules(min_support=0.1, min_confidence=0.8)
+        rules = DRSA.find_association_rules(pareto_set=T, criteria=(0, 1), min_support=0.1, min_confidence=0.8)
 
 
-        summary, s = drsa.summarize_association_rules(rules)
+        summary, s = DRSA.summarize_association_rules(rules)
 
         print(s)
 

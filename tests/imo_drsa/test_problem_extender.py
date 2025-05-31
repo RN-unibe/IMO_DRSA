@@ -204,7 +204,7 @@ class TestProblemExtenderBNH(TestCase):
 
     def test_optimisation_with_additional_constraints(self):
         # Adding new constraints should not break minimize
-        algorithm = NSGA2(pop_size=10)
+        algorithm = NSGA2(pop_size=100)
 
         def g1(x):
             return x[:, 0] - 0.2

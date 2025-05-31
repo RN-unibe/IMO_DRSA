@@ -191,7 +191,7 @@ class InteractiveDM(BaseDM):
     def select_reduct(self, reducts, core):
         assert reducts is not None, "Reducts list is empty, iteration was not skipped!"
 
-        if len(reducts) == 0:
+        if len(reducts) == 1:
             return reducts
 
         elif len(reducts) > 1:

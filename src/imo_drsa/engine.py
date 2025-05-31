@@ -61,8 +61,8 @@ class IMO_DRSAEngine():
         self.visualise = visualise
         self.pymoo_verbose = pymoo_verbose
         self.pareto_front, self.pareto_set = None, None
-
         self.to_file = to_file
+        self.pop_size = self.problem.n_var
 
         if to_file:
             # Setup results directory with timestamp
@@ -73,7 +73,7 @@ class IMO_DRSAEngine():
 
         return self
 
-    def run(self, decision_maker: BaseDM, max_iter: int = 5) -> bool:
+    def run(self, decision_maker: BaseDM, max_iter: int = 20) -> bool:
         """
         Run the interactive optimisation loop.
 
@@ -83,12 +83,10 @@ class IMO_DRSAEngine():
         """
 
         P_idx = tuple([i for i in range(0, len(self.objectives))])
-        decision_attribute = None
+        pareto_front_sample, pareto_set_sample = self.calculate_pareto_front()
 
         iteration: int = 0
         while iteration < max_iter:
-
-            pareto_front_sample, pareto_set_sample = self.calculate_pareto_front(pop_size=100, sample_size=10)
 
 
             state_backup = {
@@ -103,25 +101,26 @@ class IMO_DRSAEngine():
             if self.visualise:
                 self.visualise2D(pareto_front_sample, pareto_set_sample, iter=iteration, nr=1)
 
-            self.drsa.fit(pareto_set=pareto_set_sample, criteria=P_idx, decision_attribute=decision_attribute)
 
             # Induce association rules from current table
             if decision_maker.is_interactive():
-                association_rules = self.drsa.find_association_rules(min_support=0.2, min_confidence=0.9)
-                _, assoc_summary = self.drsa.summarize_association_rules(association_rules)
+                association_rules = DRSA.find_association_rules(pareto_set=pareto_set_sample, criteria=P_idx,
+                                                                min_support=0.2, min_confidence=0.9)
+                _, assoc_summary = DRSA.summarize_association_rules(association_rules)
 
             else:
                 assoc_summary = ""
 
             # Classify with DM feedback
-            decisions = decision_maker.classify(T=pareto_set_sample, X=pareto_front_sample, assoc_rules_summary=assoc_summary)
+            decision_attribute = decision_maker.classify(T=pareto_set_sample, X=pareto_front_sample, assoc_rules_summary=assoc_summary)
 
-            if 2 not in decisions: # No samples were considered 'good', i.e., none are in class 2
+            if 2 not in decision_attribute: # No samples were considered 'good', i.e., none are in class 2
                 print("Trying again...")
+                iteration += 1
                 continue
 
             # Find a reduct and induce decision rules
-            self.drsa.fit(pareto_set=pareto_set_sample, criteria=P_idx, decision_attribute=decisions)
+            self.drsa.fit(pareto_front=pareto_front_sample, pareto_set=pareto_set_sample, criteria=P_idx, decision_attribute=decision_attribute)
 
             reducts = self.drsa.find_reducts()
             core = self.drsa.core(reducts)
@@ -136,6 +135,7 @@ class IMO_DRSAEngine():
 
             if len(selected) == 0 or selected is None:
                 print("Trying again...")
+                iteration += 1
                 continue
 
             # Generate new constraints from selected rules
@@ -149,6 +149,7 @@ class IMO_DRSAEngine():
             if pareto_front_sample is None or pareto_front_sample.size == 0:
                 print("Infeasible constraints, Pareto Front was empty. Please try again.")
                 self.front_sample, self.set_sample, self.rules = self.undo_last()
+                iteration += 1
                 continue
 
 
@@ -163,6 +164,7 @@ class IMO_DRSAEngine():
 
                 if undo.lower() == 'y':
                     self.front_sample, self.set_sample, self.rules = self.undo_last()
+                    iteration += 1
                     continue
 
             # Ask DM if current solutions are satisfactory
@@ -205,7 +207,8 @@ class IMO_DRSAEngine():
         Plot both the Pareto front in decision space and the Pareto set in objective space,
         showing the original (lightgrey) vs. the new subset (red).
 
-        :param iter:
+        :param iter: Current iteration
+        :param nr: plot number
         :param new_pareto_set: Current Pareto set (objectives), shape (n_points, 2).
         :param new_pareto_front: Current Pareto front (decision vars), shape (n_points, 2).
         :param all_kwargs: Style overrides for 'all points'.
@@ -276,17 +279,22 @@ class IMO_DRSAEngine():
 
 
 
-    def calculate_pareto_front(self, n_gen=100, pop_size=1000, sample_size=10) -> (np.ndarray, np.ndarray):
+    def calculate_pareto_front(self, n_gen=100, pop_size=1000, sample_size=100) -> (np.ndarray, np.ndarray):
         """
         Compute Pareto-optimal set using NSGA2 algorithm.
 
-        :param sample_size:
-        :param pop_size:
-        :param pop_size: Population size for NSGA2.
+        :param sample_size: The size of the Pareto Front sample
+        :param pop_size: The size of the full Pareto Set Population
         :param n_gen: Number of generations.
 
         :return: Tuple of decision variables (pareto_front) and objective values of Pareto front (pareto_set).
         """
+        if pop_size > self.pop_size:
+            pop_size = self.pop_size
+
+        if sample_size > self.pop_size:
+            sample_size = self.pop_size
+
         res = minimize(self.problem, NSGA2(pop_size=pop_size), termination=('n_gen', n_gen), verbose=self.pymoo_verbose)
         new_pareto_front, new_pareto_set = res.X, res.F
 
@@ -318,8 +326,7 @@ class IMO_DRSAEngine():
         """
         constraints = []
 
-        if elementwise is None:
-            elementwise = self.problem.elementwise
+        elementwise = elementwise or self.problem.elementwise
 
         for profile, _, _, _, _, _, desc in selected_rules:
 

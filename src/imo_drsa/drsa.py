@@ -24,19 +24,7 @@ class DRSA:
     """
 
     def __init__(self, pareto_front=None, pareto_set: np.ndarray = None, criteria: Tuple = None,
-                 decision_attribute: np.ndarray = None):
-        """
-        :param pareto_front:
-        :param pareto_set: NumPy array with shape (N, n_var), each row is an object, columns are criteria evaluated on that object
-        :param decision_attribute: NumPy array of length N, integer‐encoded decision classes (1, ..., m)
-        :param criteria: list of column indices in pareto_set
-        """
-        if pareto_set is not None and decision_attribute is not None and criteria is not None:
-            self.fit(pareto_front=pareto_front, pareto_set=pareto_set, criteria=criteria,
-                     decision_attribute=decision_attribute)
-
-    def fit(self, pareto_front=None, pareto_set: np.ndarray = None, criteria: Tuple = None,
-            decision_attribute: np.ndarray = None, direction="down"):
+                 decision_attribute: np.ndarray = None, direction="down"):
         """
         :param direction:
         :param pareto_front:
@@ -44,8 +32,21 @@ class DRSA:
         :param decision_attribute: NumPy array of length N, integer‐encoded decision classes (1, ..., m)
         :param criteria: list of column indices in pareto_set
         """
-        assert pareto_set is not None, "Pareto set must not be empty."
-        assert criteria is not None, "Criteria must not be provided."
+        self.fit(pareto_front=pareto_front, pareto_set=pareto_set, criteria=criteria,
+                 decision_attribute=decision_attribute, direction=direction)
+
+    def fit(self, pareto_front=None,
+            pareto_set: np.ndarray = None,
+            criteria: Tuple = None,
+            decision_attribute: np.ndarray = None,
+            direction="down"):
+        """
+        :param direction:
+        :param pareto_front:
+        :param pareto_set: NumPy array with shape (N, n_var), each row is an object, columns are criteria evaluated on that object
+        :param decision_attribute: NumPy array of length N, integer‐encoded decision classes (1, ..., m)
+        :param criteria: list of column indices in pareto_set
+        """
 
         self.pareto_front = pareto_front
         self.pareto_set = pareto_set
@@ -53,10 +54,9 @@ class DRSA:
 
         self.criteria_full = criteria
 
-        self.N = pareto_set.shape[0]
+        self.N = 0 if pareto_set is None else pareto_set.shape[0]
         self.m = 0 if decision_attribute is None else (decision_attribute.max())
 
-        self.bin_edges = {i: np.percentile(self.pareto_set[:, i], [25, 50, 75]) for i in criteria}
 
         self.direction = direction
 
@@ -294,7 +294,7 @@ class DRSA:
 
         # Filter minimal: no weaker rule subsumes it
         if minimal:
-            rules = rules.copy()
+            #rules = rules.copy()
             minimal_rules = []
 
             for r in rules:
@@ -312,9 +312,9 @@ class DRSA:
         for i in p1:
             if i not in p2:
                 return False
-            if self.direction == 'up' and p1[i] < p2[i]:
+            if self.direction == 'down' and p1[i] < p2[i]:
                 return False
-            if self.direction == 'down' and p1[i] > p2[i]:
+            if self.direction == 'up' and p1[i] > p2[i]:
                 return False
 
         return True
@@ -364,27 +364,35 @@ class DRSA:
     # ---------------------------------------------------------------------------------------------------------- #
     # Association-rule mining
     # ---------------------------------------------------------------------------------------------------------- #
-    def find_association_rules(self,
-                                min_support: float = 0.1,
-                                min_confidence: float = 0.8,
-                                use_fp: bool = True) -> List[Tuple]:
+    @staticmethod
+    def find_association_rules(pareto_set,
+                               criteria,
+                               min_support: float = 0.1, min_confidence: float = 0.8,
+                               use_fp: bool = True) -> List[Tuple]:
         """
         Mine association rules among objectives (criteria) in the Pareto set.
         Only criterion bins are used—no decision classes involved.
 
+        :param pareto_set:
+        :param criteria:
         :param min_support: minimum support threshold
         :param min_confidence: minimum confidence threshold
         :param use_fp: if True, use fpgrowth; otherwise use apriori
         :return: list of (antecedents, consequents, support, confidence, description)
         """
         # 1. Build transactions from criterion quartile bins
+        assert pareto_set is not None, "Pareto set is None"
+        assert criteria is not None, "Criteria is None"
+
+        bin_edges = {i: np.percentile(pareto_set[:, i], [25, 50, 75]) for i in criteria}
+
         transactions = []
-        for x in self.pareto_set:
+        for x in pareto_set:
             items = []
 
-            for i in self.criteria_full:
+            for i in criteria:
                 val = x[i]
-                bins = self.bin_edges[i]
+                bins = bin_edges[i]
 
                 if val <= bins[0]:
                     label = f"f_{i + 1}<=Q1"
@@ -421,16 +429,16 @@ class DRSA:
                 sup = row['support']
                 conf = row['confidence']
 
-                desc = self.make_association_rule_description(ant, con, sup, conf)
+                desc = DRSA.make_association_rule_description(ant, con, sup, conf)
                 assoc_rules.append((ant, con, sup, conf, desc))
 
         return assoc_rules
 
-    def make_association_rule_description(self,
-                                        antecedents: frozenset,
-                                        consequents: frozenset,
-                                        support: float,
-                                        confidence: float) -> str:
+    @staticmethod
+    def make_association_rule_description(antecedents: frozenset,
+                                            consequents: frozenset,
+                                            support: float,
+                                            confidence: float) -> str:
         """
         Human-readable DRSA-format description of an objective-only association rule.
         """
@@ -441,8 +449,7 @@ class DRSA:
         return f"[ASSOC] IF {premise} THEN {conclusions} (support={support:.2f}, confidence={confidence:.2f})"
 
     @staticmethod
-    def summarize_association_rules(assoc_rules: List[Tuple],
-                                    top_k: int = -1) -> Tuple:
+    def summarize_association_rules(assoc_rules: List[Tuple], top_k: int = -1) -> Tuple:
         """
         Summarize only monotonic objective-objective rules in human-friendly terms:
         - Only single-antecedent, single-consequent rules where both sides parse as "..._i<=Qj"
