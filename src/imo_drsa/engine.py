@@ -4,7 +4,8 @@ from datetime import datetime
 from pathlib import Path
 
 import numpy as np
-np.row_stack = np.vstack # Because pymoo uses np.vstack which is deprecated
+
+np.row_stack = np.vstack  # Because pymoo uses np.vstack which is deprecated
 
 from typing import Callable, List
 
@@ -22,18 +23,12 @@ from src.imo_drsa.problem_extender import ProblemExtender
 
 class IMO_DRSAEngine():
     """
-    Interactive Multi-objective Optimization using Dominance-based Rough Set Approach (IMO-DRSA).
-
-    :param universe: Initial decision variable matrix of shape (n_solutions, n_variables).
-    :param objectives: List of objective functions mapping a solution vector to a float.
+    Interactive Multi-objective Optimisation using Dominance-based Rough Set Approach (IMO-DRSA).
     """
 
-    def __init__(self):  # , algorithm=NSGA2, **kwargs):
+    def __init__(self):
         """
-        Initialise the DRSA and NSGA2 Classes.
-
-        :param algorithm: Algorithm to use. Must be pymoo compatible
-        :param kwargs: any and all algorithm parameters
+        Initialise IMO-DRSAEngine.
         """
         self.history = []
         self.drsa = DRSA()
@@ -42,15 +37,19 @@ class IMO_DRSAEngine():
         self.pareto_set = None
         self.rules = None
 
-    def fit(self, problem: Problem, objectives: List[Callable] = None, verbose: bool = False, visualise=False,
-            to_file=False, pymoo_verbose=False):
+    def fit(self, problem: Problem,
+            objectives: List[Callable] = None,
+            verbose: bool = False,
+            visualise=False,
+            to_file=False,
+            pymoo_verbose=False):
         """
         Fit the IMO-DRSA solver.
 
-        :param visualise:
         :param problem: Problem to be optimised
         :param objectives: List of objective functions mapping a solution vector to a float.
-        :param verbose: bool if graphs and printouts should be given
+        :param verbose: bool if printouts should be given
+        :param visualise: bool if graphs should be given
         :param to_file: bool if output should be saved to file
         :param pymoo_verbose: bool if pymoo notifications should be allowed
         :return:
@@ -88,19 +87,17 @@ class IMO_DRSAEngine():
         iteration: int = 0
         while iteration < max_iter:
 
-
             state_backup = {
                 'problem': deepcopy(self.problem),
                 'pareto_front': deepcopy(self.pareto_front),
                 'pareto_set': deepcopy(self.pareto_front),
                 'rules': deepcopy(self.rules)
             }
-            
+
             self.history.append(state_backup)
 
             if self.visualise:
                 self.visualise2D(pareto_front_sample, pareto_set_sample, iter=iteration, nr=1)
-
 
             # Induce association rules from current table
             if decision_maker.is_interactive():
@@ -112,15 +109,17 @@ class IMO_DRSAEngine():
                 assoc_summary = ""
 
             # Classify with DM feedback
-            decision_attribute = decision_maker.classify(T=pareto_set_sample, X=pareto_front_sample, assoc_rules_summary=assoc_summary)
+            decision_attribute = decision_maker.classify(T=pareto_set_sample, X=pareto_front_sample,
+                                                         assoc_rules_summary=assoc_summary)
 
-            if 2 not in decision_attribute: # No samples were considered 'good', i.e., none are in class 2
+            if 2 not in decision_attribute:  # No samples were considered 'good', i.e., none are in class 2
                 print("Trying again...")
                 iteration += 1
                 continue
 
             # Find a reduct and induce decision rules
-            self.drsa.fit(pareto_front=pareto_front_sample, pareto_set=pareto_set_sample, criteria=P_idx, decision_attribute=decision_attribute)
+            self.drsa.fit(pareto_front=pareto_front_sample, pareto_set=pareto_set_sample, criteria=P_idx,
+                          decision_attribute=decision_attribute)
 
             reducts = self.drsa.find_reducts()
             core = self.drsa.core(reducts)
@@ -151,7 +150,6 @@ class IMO_DRSAEngine():
                 self.front_sample, self.set_sample, self.rules = self.undo_last()
                 iteration += 1
                 continue
-
 
             if self.visualise:
                 self.visualise2D(pareto_front_sample, pareto_set_sample, iter=iteration, nr=2)
@@ -200,9 +198,18 @@ class IMO_DRSAEngine():
 
         return self.pareto_front, self.pareto_set, self.rules
 
-    def visualise2D(self, new_pareto_front=None, new_pareto_set=None, all_kwargs=None, sub_kwargs=None,
-                    title_front=None, xlabel_front=None, ylabel_front=None, title_set=None, xlabel_set=None,
-                    ylabel_set=None, legend=True, iter=0, nr=1):
+    def visualise2D(self, new_pareto_front=None,
+                    new_pareto_set=None,
+                    all_kwargs=None,
+                    sub_kwargs=None,
+                    title_front=None,
+                    xlabel_front=None,
+                    ylabel_front=None,
+                    title_set=None,
+                    xlabel_set=None,
+                    ylabel_set=None,
+                    legend=True,
+                    iter=0, nr=1):
         """
         Plot both the Pareto front in decision space and the Pareto set in objective space,
         showing the original (lightgrey) vs. the new subset (red).
@@ -277,9 +284,9 @@ class IMO_DRSAEngine():
 
         plt.show()
 
-
-
-    def calculate_pareto_front(self, n_gen=100, pop_size=1000, sample_size=100) -> (np.ndarray, np.ndarray):
+    def calculate_pareto_front(self, n_gen=100,
+                               pop_size=1000,
+                               sample_size=100) -> (np.ndarray, np.ndarray):
         """
         Compute Pareto-optimal set using NSGA2 algorithm.
 
@@ -314,10 +321,9 @@ class IMO_DRSAEngine():
 
         return pareto_front_sample, pareto_set_sample
 
-
-
-
-    def generate_constraints(self, selected_rules, elementwise=None) -> List[Callable]:
+    def generate_constraints(self,
+                             selected_rules,
+                             elementwise=None) -> List[Callable]:
         """
         Translate selected decision rules into inequality constraints g(x) <= 0.
 
@@ -338,7 +344,6 @@ class IMO_DRSAEngine():
                         lambda X, i=idx, th=threshold: np.array([self.objectives[i](xi) for xi in X]) - th)
 
         return constraints
-
 
     def write_to_file(self):
         """

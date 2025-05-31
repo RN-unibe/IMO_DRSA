@@ -23,17 +23,23 @@ class DRSA:
     :param m: Number of decision classes.
     """
 
-    def __init__(self, pareto_front=None, pareto_set: np.ndarray = None, criteria: Tuple = None,
-                 decision_attribute: np.ndarray = None, direction="down"):
+    def __init__(self, pareto_front=None,
+                 pareto_set: np.ndarray = None,
+                 criteria: Tuple = None,
+                 decision_attribute: np.ndarray = None,
+                 direction="down"):
         """
-        :param direction:
-        :param pareto_front:
+        :param pareto_front: NumPy array with shape (N, n_var), each row is an object
         :param pareto_set: NumPy array with shape (N, n_var), each row is an object, columns are criteria evaluated on that object
+        :param criteria: Tuple of column indices in pareto_set
         :param decision_attribute: NumPy array of length N, integer‐encoded decision classes (1, ..., m)
-        :param criteria: list of column indices in pareto_set
+        :param direction: str direction of the union
         """
-        self.fit(pareto_front=pareto_front, pareto_set=pareto_set, criteria=criteria,
-                 decision_attribute=decision_attribute, direction=direction)
+        self.fit(pareto_front=pareto_front,
+                 pareto_set=pareto_set,
+                 criteria=criteria,
+                 decision_attribute=decision_attribute,
+                 direction=direction)
 
     def fit(self, pareto_front=None,
             pareto_set: np.ndarray = None,
@@ -41,11 +47,12 @@ class DRSA:
             decision_attribute: np.ndarray = None,
             direction="down"):
         """
-        :param direction:
-        :param pareto_front:
+        :param pareto_front: NumPy array with shape (N, n_var), each row is an object
         :param pareto_set: NumPy array with shape (N, n_var), each row is an object, columns are criteria evaluated on that object
+        :param criteria: Tuple of column indices in pareto_set
         :param decision_attribute: NumPy array of length N, integer‐encoded decision classes (1, ..., m)
-        :param criteria: list of column indices in pareto_set
+        :param direction: str direction of the union
+
         """
 
         self.pareto_front = pareto_front
@@ -70,8 +77,7 @@ class DRSA:
         """
         Boolean mask [y, x] True if object y P-dominates x.
 
-        :param criteria: list of column indices in T to use as P subset of F = {f1,...,fn}
-
+        :param criteria: Tuple of column indices in T to use as P subset of F = {f1,...,fn}
         :return: the P-dominating set of x
         """
         mask = np.ones((self.N, self.N), dtype=bool)
@@ -86,8 +92,7 @@ class DRSA:
         """
         Boolean mask [y, x] True if object x P-dominates y.
 
-        :param criteria: list of column indices in T to use as P subset of F = {f1,...,fn}
-
+        :param criteria: Tuple of column indices in T to use as P subset of F = {f1,...,fn}
         :return: the P-dominated set of x
         """
         mask = np.ones((self.N, self.N), dtype=bool)
@@ -106,9 +111,8 @@ class DRSA:
         """
         Lower approximation of upward union for decision >= threshold.
 
-        :param criteria: list of column indices in T to use as P subset of F = {f1,...,fn}
-        :param threshold:int of class
-
+        :param criteria: Tuple of column indices in T to use as P subset of F = {f1,...,fn}
+        :param threshold: int index of class
         :return: np.ndarray containing the lower approximation of upward union
         """
         cone = self.positive_cone(criteria)
@@ -120,8 +124,7 @@ class DRSA:
         Upper approximation of upward union for decision >= threshold.
 
         :param criteria: list of column indices in T to use as P subset of F = {f1,...,fn}
-        :param threshold:int of class
-
+        :param threshold: int index of class
         :return: np.ndarray containing the upper approximation of upward union
          """
         cone = self.negative_cone(criteria)
@@ -133,8 +136,7 @@ class DRSA:
         Lower approximation of downward union for decision <= threshold.
 
         :param criteria: list of column indices in T to use as P subset of F = {f1,...,fn}
-        :param threshold:int of class
-
+        :param threshold: int index of class
         :return: np.ndarray containing the lower approximation of downward union
         """
         cone = self.negative_cone(criteria)
@@ -146,8 +148,7 @@ class DRSA:
         Upper approximation of downward union for decision <= threshold.
 
         :param criteria: list of column indices in T to use as P subset of F = {f1,...,fn}
-        :param threshold:int of class
-
+        :param threshold: int index of class
         :return: np.ndarray containing the upper approximation of downward union
         """
         cone = self.positive_cone(criteria)
@@ -160,9 +161,9 @@ class DRSA:
 
     def quality(self, criteria: Tuple) -> float:
         """
-        Compute the quality of approximation gamma for given criteria.
+        Compute the quality of approximation (gamma) for given criteria.
 
-        :param criteria: list of column indices in T to use as P subset of F = {f1,...,fn}
+        :param criteria: Tuple of column indices in T to use as P subset of F = {f1,...,fn}
         """
         consistent_mask = np.ones(self.N, dtype=bool)
 
@@ -176,7 +177,7 @@ class DRSA:
         return float(consistent_mask.sum()) / self.N
 
     # ---------------------------------------------------------------------------------------------------------- #
-    # Finding reducts (brute‐force; not good for large n, use heuristic)
+    # Finding reducts (brute‐force, not good for large n,)
     # ---------------------------------------------------------------------------------------------------------- #
     def find_reducts(self) -> List[Tuple]:
         """
@@ -201,10 +202,11 @@ class DRSA:
         return reducts
 
 
-    def core(self, reducts=None) -> Tuple:
-        """Compute core criteria as intersecti
-        on of all reducts.
-        :param reducts: """
+    def core(self, reducts:List[Tuple]=None) -> Tuple:
+        """
+        Compute core criteria as intersection of all reducts.
+        :param reducts: List of reducts as Tuples
+        """
         reducts = reducts or self.find_reducts()
 
         if not reducts:
@@ -226,10 +228,10 @@ class DRSA:
         Build human-readable rule description.
 
         :param profile: dict with column indices of the compared objectives and variables
-        :param conclusion: conclusion of the decision
-        :param support: support of the decision
-        :param confidence: confidence of the decision
-        :param kind: type of rule
+        :param conclusion: str conclusion of the decision
+        :param support: float support of the decision
+        :param confidence: float confidence of the decision
+        :param kind: str type of rule
         :return: rule description
         """
         conds = []
@@ -242,14 +244,16 @@ class DRSA:
 
         return (f"[{kind.upper()}] IF {premise} THEN {conclusion} (support={support:.2f}, confidence={confidence:.2f})")
 
-    def induce_decision_rules(self, criteria: Tuple = None, threshold: int = 2, minimal: bool = True) -> List[Tuple]:
+    def induce_decision_rules(self, criteria: Tuple = None,
+                              threshold: int = 2,
+                              minimal: bool = True) -> List[Tuple]:
         """
         Induce certain and possible decision rules for Cl>=threshold or Cl<=threshold.
         direction: 'up' or 'down'.
 
         :param criteria: list of column indices in T to use as P subset of F = {f1,...,fn}
-        :param threshold:int of class
-
+        :param threshold: int index of class
+        :param minimal: bool True if rules should be minimal
         :return: list of induced decision rules of form (profile, concl, support, confidence, kind, direction, desc)
         """
         criteria = criteria or self.criteria_full
@@ -290,11 +294,7 @@ class DRSA:
                     if self.is_robust(rule):
                         rules.append(rule)
 
-
-
-        # Filter minimal: no weaker rule subsumes it
         if minimal:
-            #rules = rules.copy()
             minimal_rules = []
 
             for r in rules:
@@ -305,7 +305,17 @@ class DRSA:
 
         return rules
 
-    def subsumes(self, r1, r2):
+    def subsumes(self,
+                 r1:Tuple,
+                 r2:Tuple) -> bool:
+        """
+        Check if a rule is subsumed by another rule, i.e., if they have the same result,
+        but one has a weaker premise.
+
+        :param r1: Tuple rule to check
+        :param r2: Tuple rule which migh subsume r1
+        :return: True if premise of r1 is weaker than premise of r2, but has the same outcome, False otherwise.
+        """
         p1 = r1[0]
         p2 = r2[0]
         # r1 subsumes r2 if p1 is weaker (i.e., thresholds for >= lower, <= higher)
@@ -344,7 +354,6 @@ class DRSA:
 
         :param rules: decision or association rules
         :param verbose: bool print the explanation if True, not if False
-
         :return: list of strings describing the rules
         """
         explanations = []
@@ -365,22 +374,22 @@ class DRSA:
     # Association-rule mining
     # ---------------------------------------------------------------------------------------------------------- #
     @staticmethod
-    def find_association_rules(pareto_set,
-                               criteria,
-                               min_support: float = 0.1, min_confidence: float = 0.8,
+    def find_association_rules(pareto_set:np.ndarray,
+                               criteria:Tuple,
+                               min_support: float = 0.1,
+                               min_confidence: float = 0.8,
                                use_fp: bool = True) -> List[Tuple]:
         """
         Mine association rules among objectives (criteria) in the Pareto set.
         Only criterion bins are used—no decision classes involved.
 
-        :param pareto_set:
-        :param criteria:
+        :param pareto_set: NumPy array with shape (N, n_var), each row is an object, columns are criteria evaluated on that object
+        :param criteria: Tuple of column indices in pareto_set
         :param min_support: minimum support threshold
         :param min_confidence: minimum confidence threshold
         :param use_fp: if True, use fpgrowth; otherwise use apriori
         :return: list of (antecedents, consequents, support, confidence, description)
         """
-        # 1. Build transactions from criterion quartile bins
         assert pareto_set is not None, "Pareto set is None"
         assert criteria is not None, "Criteria is None"
 
@@ -407,19 +416,16 @@ class DRSA:
 
             transactions.append(items)
 
-        # 2. One-hot encode transactions
         te = TransactionEncoder()
         te_ary = te.fit(transactions).transform(transactions)
         df = pd.DataFrame(te_ary, columns=te.columns_)
 
-        # 3. Find frequent itemsets
         if use_fp:
             freq = fpgrowth(df, min_support=min_support, use_colnames=True)
         else:
             freq = apriori(df, min_support=min_support, use_colnames=True)
 
         assoc_rules = []
-        # 4. Generate association rules
         if freq is not None and len(freq) > 0 :
             raw_rules = association_rules(freq, metric="confidence", min_threshold=min_confidence)
 
@@ -446,18 +452,16 @@ class DRSA:
         conclusions = [item.replace('<=Q', '<=').replace('>=Q', '>=') for item in sorted(consequents)]
         premise = ' AND '.join(conditions)
         conclusions = ' AND '.join(conclusions)
+
         return f"[ASSOC] IF {premise} THEN {conclusions} (support={support:.2f}, confidence={confidence:.2f})"
 
     @staticmethod
     def summarize_association_rules(assoc_rules: List[Tuple], top_k: int = -1) -> Tuple:
         """
-        Summarize only monotonic objective-objective rules in human-friendly terms:
-        - Only single-antecedent, single-consequent rules where both sides parse as "..._i<=Qj"
-        - Direction is 'higher' if j>=3 else 'lower'
-        - Deduplicate identical summaries by adding their supports
-        Returns:
-          summaries: set of (text, total_sup, conf) tuples
-          summaries_str: multiline string listing each summary
+        Summarize only monotonic objective-objective rules in human-friendly terms.
+
+        :param assoc_rules: List of association rules as Tuples
+        :return: summaries (set of (text, total_sup, conf) tuples) and summaries_str
         """
         simple_rules = []
         for ant, con, sup, conf, _ in assoc_rules:
@@ -480,16 +484,12 @@ class DRSA:
                 text = f"If objective {idx_a} is {dir_a}, objective {idx_c} tends to be {dir_c}"
                 simple_rules.append((text, sup, conf))
 
-        # sort by descending confidence, then by text to stabilize
         simple_rules.sort(key=lambda x: (-x[2], x[0]))
 
-        # take top_k (if top_k < 0, take all)
         top_rules = simple_rules if top_k < 0 else simple_rules[:top_k]
 
-        # merge duplicates by summing support
         merged: Dict[str, Tuple[float, float]] = {}
-        # (text) → (total_sup, conf). If multiple conf for same text, you could take max or avg;
-        # here we just keep the highest confidence.
+
         for text, sup, conf in top_rules:
             if text in merged:
                 total_sup, best_conf = merged[text]
@@ -497,10 +497,8 @@ class DRSA:
             else:
                 merged[text] = (sup, conf)
 
-        # build return structures
         summaries = {(text, total_sup, conf) for text, (total_sup, conf) in merged.items()}
 
-        # human-readable multiline string
         lines = []
         for text, (total_sup, conf) in merged.items():
             lines.append(f"{text} (support={total_sup:.2f}, confidence={conf:.2f})")

@@ -185,8 +185,6 @@ class TestAssociationRules(TestCase):
         self.assertEqual(len(summary), 18)
 
 
-
-
     def test_find_association_rules(self):
         row1 = [i for i in range(5, 10)]
         row2 = [i for i in range(4, -1, -1)]
