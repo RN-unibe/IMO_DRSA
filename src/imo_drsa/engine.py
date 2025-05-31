@@ -33,33 +33,36 @@ class IMO_DRSAEngine():
         self.history = []
         self.drsa = DRSA()
         self.wrapper = ProblemExtender()
-        self.pareto_front = None
-        self.pareto_set = None
+        self.X_pareto = None
+        self.F_pareto = None
         self.rules = None
 
     def fit(self, problem: Problem,
-            objectives: List[Callable] = None,
+            gain_type_objectives: List[Callable] = None,
             verbose: bool = False,
             visualise=False,
             to_file=False,
             pymoo_verbose=False):
         """
-        Fit the IMO-DRSA solver.
+        Fit the IMO-DRSA solver. Requirement: Any and All objectives passed MUST be GAIN TYPE!
 
         :param problem: Problem to be optimised
-        :param objectives: List of objective functions mapping a solution vector to a float.
+        :param gain_type_objectives: List of objective functions mapping a solution vector to a float. They must be gain type functions!
         :param verbose: bool if printouts should be given
         :param visualise: bool if graphs should be given
         :param to_file: bool if output should be saved to file
         :param pymoo_verbose: bool if pymoo notifications should be allowed
         :return: self
         """
+        print("Make sure that your objective functions which are passed to the engine are GAIN TYPE.")
+        print("You do not need to change your Problem set up. This only applies to the explicit callables in 'objectives'.")
+
         self.problem = self.wrapper.enable_dynamic_constraints(problem=problem)
-        self.objectives = objectives
+        self.objectives = gain_type_objectives
         self.verbose = verbose
         self.visualise = visualise
         self.pymoo_verbose = pymoo_verbose
-        self.pareto_front, self.pareto_set = None, None
+        self.X_pareto, self.F_pareto = None, None
         self.to_file = to_file
         self.pop_size = self.problem.n_var
 
@@ -82,26 +85,26 @@ class IMO_DRSAEngine():
         """
 
         P_idx = tuple([i for i in range(0, len(self.objectives))])
-        pareto_front_sample, pareto_set_sample = self.calculate_pareto_front()
+        X_pareto_sample, F_pareto_sample = self.calculate_pareto_front()
 
         iteration: int = 0
         while iteration < max_iter:
 
             state_backup = {
                 'problem': deepcopy(self.problem),
-                'pareto_front': deepcopy(self.pareto_front),
-                'pareto_set': deepcopy(self.pareto_front),
+                'X_pareto': deepcopy(self.X_pareto),
+                'F_pareto': deepcopy(self.F_pareto),
                 'rules': deepcopy(self.rules)
             }
 
             self.history.append(state_backup)
 
             if self.visualise:
-                self.visualise2D(pareto_front_sample, pareto_set_sample, iter=iteration, nr=1)
+                self.visualise2D(X_pareto_sample, F_pareto_sample, iter=iteration, nr=1)
 
             # Induce association rules from current table
             if decision_maker.is_interactive():
-                association_rules = DRSA.find_association_rules(pareto_set=pareto_set_sample, criteria=P_idx,
+                association_rules = DRSA.find_association_rules(F_pareto=F_pareto_sample, criteria=P_idx,
                                                                 min_support=0.2, min_confidence=0.9)
                 _, assoc_summary = DRSA.summarize_association_rules(association_rules)
 
@@ -109,7 +112,7 @@ class IMO_DRSAEngine():
                 assoc_summary = ""
 
             # Classify with DM feedback
-            decision_attribute = decision_maker.classify(T=pareto_set_sample, X=pareto_front_sample,
+            decision_attribute = decision_maker.classify(F_pareto=F_pareto_sample, X_pareto=X_pareto_sample,
                                                          assoc_rules_summary=assoc_summary)
 
             if 2 not in decision_attribute:  # No samples were considered 'good', i.e., none are in class 2
@@ -118,7 +121,9 @@ class IMO_DRSAEngine():
                 continue
 
             # Find a reduct and induce decision rules
-            self.drsa.fit(pareto_front=pareto_front_sample, pareto_set=pareto_set_sample, criteria=P_idx,
+            self.drsa.fit(X_pareto=X_pareto_sample,
+                          F_pareto= -F_pareto_sample, #IMPORTANT: Needs to be negated, since this is the result of minimzation!
+                          criteria=P_idx,
                           decision_attribute=decision_attribute)
 
             reducts = self.drsa.find_reducts()
@@ -142,20 +147,20 @@ class IMO_DRSAEngine():
             self.problem.add_constraints(new_constraints)
 
             # Compute Pareto front under current constraints
-            pareto_front_sample, pareto_set_sample = self.calculate_pareto_front()
+            X_pareto_sample, F_pareto_sample = self.calculate_pareto_front()
 
             # If the constraints create a solely infeasible- or empty region, the last selection is undone
-            if pareto_front_sample is None or pareto_front_sample.size == 0:
+            if X_pareto_sample is None or X_pareto_sample.size == 0:
                 print("Infeasible constraints, Pareto Front was empty. Please try again.")
                 self.front_sample, self.set_sample, self.rules = self.undo_last()
                 iteration += 1
                 continue
 
             if self.visualise:
-                self.visualise2D(pareto_front_sample, pareto_set_sample, iter=iteration, nr=2)
+                self.visualise2D(X_pareto_sample, F_pareto_sample, iter=iteration, nr=2)
 
             if decision_maker.is_interactive():
-                decision_maker.print_samples(pareto_set_sample, pareto_front_sample)
+                decision_maker.print_samples(F_pareto_sample, X_pareto_sample)
 
             if decision_maker.is_interactive():
                 undo = input("Do you want to undo the last selection? (y/n): ")
@@ -166,7 +171,7 @@ class IMO_DRSAEngine():
                     continue
 
             # Ask DM if current solutions are satisfactory
-            if decision_maker.is_satisfied(pareto_front_sample, pareto_set_sample, self.rules):
+            if decision_maker.is_satisfied(X_pareto_sample, F_pareto_sample, self.rules):
                 print("DM is satisfied. Terminating Process")
 
                 if self.to_file:
@@ -190,13 +195,13 @@ class IMO_DRSAEngine():
 
         last_state = self.history.pop()
         self.problem = last_state['problem']
-        self.pareto_front = last_state['pareto_front']
-        self.pareto_set = last_state['pareto_set']
+        self.X_pareto = last_state['pareto_front']
+        self.F_pareto = last_state['pareto_set']
         self.rules = last_state['rules']
 
         print("Last selection undone.")
 
-        return self.pareto_front, self.pareto_set, self.rules
+        return self.X_pareto, self.F_pareto, self.rules
 
     def visualise2D(self, new_pareto_front=None,
                     new_pareto_set=None,
@@ -239,15 +244,15 @@ class IMO_DRSAEngine():
         sub_style = {**sub_defaults, **sub_kwargs}
 
         if new_pareto_front is None:
-            new_pareto_front = self.pareto_front
+            new_pareto_front = self.X_pareto
 
         if new_pareto_set is None:
-            new_pareto_set = self.pareto_set
+            new_pareto_set = self.F_pareto
 
         fig, (ax_front, ax_set) = plt.subplots(1, 2, figsize=(12, 5))
 
         # --- decision-space plot ---
-        front = np.asarray(self.pareto_front)
+        front = np.asarray(self.X_pareto)
         ax_front.scatter(front[:, 0], front[:, 1], **all_style)
 
         new_front = np.asarray(new_pareto_front)
@@ -262,7 +267,7 @@ class IMO_DRSAEngine():
             ax_front.legend()
 
         # --- objective-space plot ---
-        pset = np.asarray(self.pareto_set)
+        pset = np.asarray(self.F_pareto)
         ax_set.scatter(pset[:, 0], pset[:, 1], **all_style)
 
         new_pset = np.asarray(new_pareto_set)
@@ -296,28 +301,24 @@ class IMO_DRSAEngine():
 
         :return: Tuple of decision variables (pareto_front) and objective values of Pareto front (pareto_set).
         """
-        if pop_size > self.pop_size:
-            pop_size = self.pop_size
 
-        if sample_size > self.pop_size:
-            sample_size = self.pop_size
 
         res = minimize(self.problem, NSGA2(pop_size=pop_size), termination=('n_gen', n_gen), verbose=self.pymoo_verbose)
-        new_pareto_front, new_pareto_set = res.X, res.F
+        new_X_pareto, new_F_pareto = res.X, res.F
 
-        if new_pareto_front is not None and new_pareto_set is not None:
-            self.pareto_front, self.pareto_set = new_pareto_front, new_pareto_set
+        if new_X_pareto is not None and new_F_pareto is not None:
+            self.X_pareto, self.F_pareto = new_X_pareto, new_F_pareto
         else:
             return None, None
 
-        sample = min(len(self.pareto_front), sample_size)
-        idx = np.random.choice(len(self.pareto_front), sample, replace=False)
+        sample = min(len(self.X_pareto), sample_size)
+        idx = np.random.choice(len(self.X_pareto), sample, replace=False)
 
-        pareto_front_sample = self.pareto_front[idx]
-        pareto_set_sample = self.pareto_set[idx]
+        pareto_front_sample = self.X_pareto[idx]
+        pareto_set_sample = self.F_pareto[idx]
 
         if self.verbose:
-            print(f'Total size of Pareto Front: {len(self.pareto_front)}')
+            print(f'Total size of Pareto Front: {len(self.X_pareto)}')
 
         return pareto_front_sample, pareto_set_sample
 
@@ -355,14 +356,14 @@ class IMO_DRSAEngine():
         ps_path = out_dir / f"pareto_set.csv"
         rules_path = out_dir / f"rules.json"
 
-        if hasattr(self.pareto_front, 'shape'):
-            df_pf = pd.DataFrame(self.pareto_front,
-                                 columns=[f"x{i}" for i in range(self.pareto_front.shape[1])])
+        if hasattr(self.X_pareto, 'shape'):
+            df_pf = pd.DataFrame(self.X_pareto,
+                                 columns=[f"x{i}" for i in range(self.X_pareto.shape[1])])
             df_pf.to_csv(pf_path, index=False)
 
-        if hasattr(self.pareto_set, 'shape'):
-            df_ps = pd.DataFrame(self.pareto_set,
-                                 columns=[f"f{i}" for i in range(self.pareto_set.shape[1])])
+        if hasattr(self.F_pareto, 'shape'):
+            df_ps = pd.DataFrame(self.F_pareto,
+                                 columns=[f"f{i}" for i in range(self.F_pareto.shape[1])])
             df_ps.to_csv(ps_path, index=False)
 
         serializable = []

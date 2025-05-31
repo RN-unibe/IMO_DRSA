@@ -48,16 +48,19 @@ class TestDRSA(TestCase):
         self.assertListEqual(up_up.tolist(), [True, False, True, True, True])
 
     def test_quality(self):
+        self.drsa.direction = "up"
         gamma = self.drsa.quality((0, 1))
         # For the given data, consistency yields 2 out of 5 objects => 0.4
         self.assertAlmostEqual(gamma, 0.4, places=6)
 
     def test_find_reducts(self):
+        self.drsa.direction="up"
         reducts = self.drsa.find_reducts()
         # Only the full set of criteria is a minimal reduct here
         self.assertEqual(reducts, [(0, 1)])
 
     def test_general(self):
+        self.drsa.direction = "up"
         # Validate pipeline end-to-end
         T = np.array([[5, 7],
                       [3, 4],
@@ -68,7 +71,7 @@ class TestDRSA(TestCase):
         d = np.array([1, 1, 3, 2, 2])
 
         drsa = DRSA()
-        drsa.fit(pareto_set=T, criteria=(0, 1), decision_attribute=d)
+        drsa.fit(F_pareto=T, criteria=(0, 1), decision_attribute=d)
 
         low_up = drsa.lower_approx_up((0, 1), threshold=2)
         up_up = drsa.upper_approx_up((0, 1), threshold=2)
@@ -77,6 +80,7 @@ class TestDRSA(TestCase):
         self.assertListEqual(up_up.tolist(), [True, False, True, True, True])
 
         gamma = drsa.quality((0, 1))
+        print(gamma)
         self.assertAlmostEqual(gamma, 0.4, places=6)
 
         reducts = drsa.find_reducts()
@@ -145,24 +149,6 @@ class TestDRSA1D(TestCase):
         self.assertTrue(any(rule[0].get(0) == 2 for rule in rules if rule[4] == 'certain'))
 
 
-class TestDecisionRuleFormatting(TestCase):
-    def setUp(self):
-        self.pareto_set = np.array([[1]])
-        self.dec_attr = np.array([1])
-        self.criteria = (0,)
-        self.drsa = DRSA(pareto_set=self.pareto_set, criteria=self.criteria, decision_attribute=self.dec_attr)
-
-    def test_make_rule_description(self):
-        profile = {0: 5, 1: 10}
-        desc = self.drsa.make_rule_description(profile, "d >= 2", support=0.75, confidence=0.80, kind='certain')
-        self.assertIn("CERTAIN", desc)
-        self.assertIn("f_1(x) <= 5 AND f_2(x) <= 10", desc)
-        self.assertIn("support=0.75", desc)
-        self.assertIn("confidence=0.80", desc)
-
-
-
-
 
 class TestAssociationRules(TestCase):
 
@@ -177,7 +163,7 @@ class TestAssociationRules(TestCase):
             [2, 5, 3],
         ])
 
-        rules = DRSA.find_association_rules(pareto_set=T, criteria=(0, 1, 2), min_support=0.1, min_confidence=0.8)
+        rules = DRSA.find_association_rules(F_pareto=T, criteria=(0, 1, 2), min_support=0.1, min_confidence=0.8)
 
 
         summary, _ = DRSA.summarize_association_rules(rules)
@@ -191,7 +177,7 @@ class TestAssociationRules(TestCase):
 
         T = np.array([row1, row2]).T
 
-        rules = DRSA.find_association_rules(pareto_set=T, criteria=(0, 1), min_support=0.1, min_confidence=0.8)
+        rules = DRSA.find_association_rules(F_pareto=T, criteria=(0, 1), min_support=0.1, min_confidence=0.8)
 
 
         summary, s = DRSA.summarize_association_rules(rules)

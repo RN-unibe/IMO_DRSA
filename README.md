@@ -16,6 +16,7 @@ This interactive and iterative optimisation process integrates human decision-ma
 - Induces decision rules distinguishing preferred solutions ('good') from non-preferred ones.
 - Computes positive/negative cones, rough approximations, and quality metrics.
 - Supports association rule mining for enhanced decision-context understanding.
+- **Note**: All objective functions are considered to be gain-type!
 
 
 **Decision Makers** (`decision_maker.py`):
@@ -42,7 +43,8 @@ This interactive and iterative optimisation process integrates human decision-ma
 
 The cycle continues until a satisfactory solution set emerges or convergence criteria are met.
 
-
+Note, that all explicit objective functions passed to the engine must be gain type!
+(Note: This is only for the objectives passed the engine, not in the problem itself!)
 ---
 
 # Example

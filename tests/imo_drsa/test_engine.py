@@ -79,9 +79,9 @@ class TestIMO_DRSAEngineProblemSolving(TestCase):
 
             return term1 * term1 + term2 * term2
 
-        objectives = [f0, f1]
+        objectives = [lambda x: -f0(x),  lambda x: -f1(x)]
 
-        engine = IMO_DRSAEngine().fit(problem=problem, objectives=objectives, verbose=self.verbose, to_file=self.to_file)
+        engine = IMO_DRSAEngine().fit(problem=problem, gain_type_objectives=objectives, verbose=self.verbose, to_file=self.to_file)
 
         success = engine.run(dm, max_iter=self.max_iter)
 
@@ -103,9 +103,9 @@ class TestIMO_DRSAEngineProblemSolving(TestCase):
         def f1(x):
             return np.sum(np.asarray(x) ** 2)
 
-        objectives = [f0, f1]
+        objectives = [lambda x: -f0(x),  lambda x: -f1(x)]
 
-        engine = IMO_DRSAEngine().fit(problem=problem, objectives=objectives, verbose=self.verbose, to_file=self.to_file)
+        engine = IMO_DRSAEngine().fit(problem=problem, gain_type_objectives=objectives, verbose=self.verbose, to_file=self.to_file)
 
         success = engine.run(dm, max_iter=self.max_iter)
 
@@ -122,9 +122,9 @@ class TestIMO_DRSAEngineProblemSolving(TestCase):
         def f1(x):
             return np.asarray(x[1])
 
-        objectives = [f0, f1]
+        objectives = [lambda x: -f0(x),  lambda x: -f1(x)]
 
-        engine = IMO_DRSAEngine().fit(problem=problem, objectives=objectives, verbose=self.verbose, to_file=self.to_file)
+        engine = IMO_DRSAEngine().fit(problem=problem, gain_type_objectives=objectives, verbose=self.verbose, to_file=self.to_file)
 
         success = engine.run(dm, max_iter=self.max_iter)
 
@@ -144,7 +144,7 @@ class TestIMO_DRSAEngineProblemSolving(TestCase):
                 n_var = x.size
                 k = n_var - n_obj + 1
                 xm = x[-k:]
-                return 100 * (k + np.sum((xm - 0.5) ** 2 - np.cos(20 * np.pi * (xm - 0.5))))
+                return -(100 * (k + np.sum((xm - 0.5) ** 2 - np.cos(20 * np.pi * (xm - 0.5))))) # "-" because they need to be gain type
 
             objectives = []
             for i in range(n_obj):
@@ -155,7 +155,7 @@ class TestIMO_DRSAEngineProblemSolving(TestCase):
 
         objectives = dtlz1(3)
 
-        engine = IMO_DRSAEngine().fit(problem=problem, objectives=objectives, verbose=self.verbose, to_file=self.to_file)
+        engine = IMO_DRSAEngine().fit(problem=problem, gain_type_objectives=objectives, verbose=self.verbose, to_file=self.to_file)
 
         success = engine.run(dm, max_iter=self.max_iter)
 
@@ -163,7 +163,7 @@ class TestIMO_DRSAEngineProblemSolving(TestCase):
 
 class TestFaultySelections(TestCase):
 
-    @patch('builtins.input', return_value='2,5')
+    @patch('builtins.input', return_value='1')
     @patch('builtins.print')
     def test_empty_pareto_front(self, mock_input, mock_print):
         dm = InteractiveDM()
@@ -178,39 +178,40 @@ class TestFaultySelections(TestCase):
 
             return term1 * term1 + term2 * term2
 
-        objectives = [f0, f1]
+        objectives = [lambda x: -f0(x), lambda x: -f1(x)]
 
-        engine = IMO_DRSAEngine().fit(problem=problem, objectives=objectives, verbose=False, visualise=False, to_file=False)
+        engine = IMO_DRSAEngine().fit(problem=problem, gain_type_objectives=objectives, verbose=False, visualise=False,
+                                      to_file=False)
 
         X = np.array([[2.6309, 2.8100],
-            [0.9031, 0.7224],
-            [1.6355, 1.4473],
-            [4.0138, 2.9486],
-            [0.2065, 0.1939],
-            [1.2023, 1.2442],
-            [0.9649, 0.8549],
-            [2.3048, 2.3299],
-            [4.8183, 2.9940],
-            [2.2535, 2.2455]])
+                      [0.9031, 0.7224],
+                      [1.6355, 1.4473],
+                      [4.0138, 2.9486],
+                      [0.2065, 0.1939],
+                      [1.2023, 1.2442],
+                      [0.9649, 0.8549],
+                      [2.3048, 2.3299],
+                      [4.8183, 2.9940],
+                      [2.2535, 2.2455]])
 
         T = np.array([[59.2711, 10.4087],
-            [5.3494, 35.0830],
-            [19.0782, 23.9415],
-            [99.2194, 5.1809],
-            [0.3209, 46.0764],
-            [11.9741, 28.5287],
-            [6.6477, 33.4637],
-            [42.9620, 14.3936],
-            [128.7210, 4.0571],
-            [40.4825, 15.1304]])
+                      [5.3494, 35.0830],
+                      [19.0782, 23.9415],
+                      [99.2194, 5.1809],
+                      [0.3209, 46.0764],
+                      [11.9741, 28.5287],
+                      [6.6477, 33.4637],
+                      [42.9620, 14.3936],
+                      [128.7210, 4.0571],
+                      [40.4825, 15.1304]])
 
         crit = (0, 1)
 
         d = np.ones(10)
-        d[2], d[5] = 2, 2
+        d[2], d[5], d[9] = 2, 2, 2
 
         drsa = DRSA()
-        drsa.fit(pareto_front=X, pareto_set=T, criteria=crit, decision_attribute=d)
+        drsa.fit(X_pareto=X, F_pareto=T, criteria=crit, decision_attribute=d)
         rules = drsa.induce_decision_rules()
 
         chosen = dm.select(rules)

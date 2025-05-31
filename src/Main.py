@@ -20,13 +20,15 @@ if __name__ == "__main__":
 
         return term1 * term1 + term2 * term2
 
-    objectives = [f0, f1]
+    # 4. Make sure, the explicit objective functions passed to the engine are gain type!
+    #    (Note: This is only for the objectives passed the engine, not in the problem itself!)
+    objectives = [lambda x: -f0(x),  lambda x: -f1(x)]
 
-    # 4. Fit the IMO-DRSA Engine with the chosen problem and objectives
-    engine = IMO_DRSAEngine().fit(problem=problem, objectives=objectives,
-                                  verbose=True,   # Set Ture to be given print out updates
-                                  visualise=True, # Set True to be given 2D plots of the current pareto fronts and sets
+    # 5. Fit the IMO-DRSA Engine with the chosen problem and objectives
+    engine = IMO_DRSAEngine().fit(problem=problem, gain_type_objectives=objectives,
+                                  verbose=True,  # Set Ture to be given print out updates
+                                  visualise=True,  # Set True to be given 2D plots of the current pareto fronts and sets
                                   to_file=True)   # Set True to save outputs to /results_YYYYMMDD_HHMMSS/)
 
-    # 5. Run the engine
+    # 6. Run the engine
     success = engine.run(dm, max_iter=4)

@@ -18,13 +18,13 @@ class BaseDM:
     """
 
     @abc.abstractmethod
-    def classify(self, T: np.ndarray, X: np.ndarray, assoc_rules_summary: str=None):
+    def classify(self, F_pareto: np.ndarray, X_pareto: np.ndarray, assoc_rules_summary: str = None):
         """
         Classify Pareto sample into 'good' (2) vs 'other' (1) via median-split.
         Chooses the objective whose split yields the most balanced classes.
 
-        :param X:
-        :param T: array of shape (n_samples, n_objectives)
+        :param X_pareto:
+        :param F_pareto: array of shape (n_samples, n_objectives)
         :param assoc_rules_summary: str the summary of the association rules
         :return: array of labels (1 or 2) for each sample in T
         """
@@ -45,8 +45,8 @@ class BaseDM:
         """
         Select which reduct should be used in the DRSA algorithm.
 
-        :param reducts: list of all reducts, each as a tuple
-        :param core: list of core decision rules
+        :param reducts: tuple of all reducts, each as a tuple
+        :param core: tuple of core decision rules
         """
         pass
 
@@ -115,13 +115,13 @@ class InteractiveDM(BaseDM):
     and decision rules.
     """
 
-    def classify(self, T: np.ndarray, X: np.ndarray, assoc_rules_summary: str = None) -> np.ndarray:
+    def classify(self, F_pareto: np.ndarray, X_pareto: np.ndarray, assoc_rules_summary: str = None) -> np.ndarray:
         """
         Prompt the user to classify Pareto-optimal samples into 'good' or 'other'.
         Displays association rules and current Pareto sample for context.
 
-        :param X:
-        :param T: objective values of Pareto-optimal samples (n_samples, n_objectives)
+        :param X_pareto:
+        :param F_pareto: objective values of Pareto-optimal samples (n_samples, n_objectives)
         :param assoc_rules_summary: association rules for context
         :return: array of labels (2 for 'good', 1 for 'other')
         """
@@ -131,7 +131,7 @@ class InteractiveDM(BaseDM):
             print("\nAssociation Rules:")
             print(assoc_rules_summary)
 
-        self.print_samples(T, X)
+        self.print_samples(F_pareto, X_pareto)
 
         prompt = "\nSelect indices (#) of samples with 'good' evaluation (comma-separated) \n(Press Enter if none are satisfactory): \n"
 
@@ -150,21 +150,21 @@ class InteractiveDM(BaseDM):
                     invalids.append(tok)
                     continue
                 i = int(tok)
-                if 0 <= i < len(T):
+                if 0 <= i < len(F_pareto):
                     good_idxs.add(i)
                 else:
                     invalids.append(tok)
 
             if invalids:
                 print("Invalid input. Please enter valid sample indices (0 to "
-                      f"{len(T) - 1}), separated by commas.")
+                      f"{len(F_pareto) - 1}), separated by commas.")
                 continue
 
             break
 
-        labels = np.ones(len(T), dtype=int)
+        labels = np.ones(len(F_pareto), dtype=int)
         for i in good_idxs:
-            if 0 <= i < len(T):
+            if 0 <= i < len(F_pareto):
                 labels[i] = 2
 
         return labels
@@ -192,7 +192,7 @@ class InteractiveDM(BaseDM):
         assert reducts is not None, "Reducts list is empty, iteration was not skipped!"
 
         if len(reducts) == 1:
-            return reducts
+            return reducts[0]
 
         elif len(reducts) > 1:
             print("Available Reducts:")
@@ -303,32 +303,32 @@ class AutomatedDM(BaseDM):
         self.prev_hv = None
         self.round = 0
 
-    def classify(self, T: np.ndarray, X=None, assoc_rules_summary=None) -> np.ndarray:
+    def classify(self, F_pareto: np.ndarray, X_pareto, assoc_rules_summary=None) -> np.ndarray:
         """
         Automatically classify samples via median-split on objectives for balanced labels,
         compute initial hypervolume indicator.
 
-        :param X:
-        :param T: objective values of Pareto-optimal samples
+        :param X_pareto:
+        :param F_pareto: objective values of Pareto-optimal samples
         :param assoc_rules_summary: association rules (unused)
         :return: labels array where 2 indicates better than median
         """
-        medians = np.median(T, axis=0)
-        n_points, n_objs = T.shape
+        medians = np.median(F_pareto, axis=0)
+        n_points, n_objs = F_pareto.shape
         best_balance = n_points + 1
         best_labels = np.ones(n_points, dtype=int)
 
         for i in range(n_objs):
-            labels = np.where(T[:, i] <= medians[i], 2, 1)
+            labels = np.where(F_pareto[:, i] <= medians[i], 2, 1)
             balance = abs((labels == 2).sum() - (labels == 1).sum())
             if balance < best_balance:
                 best_balance = balance
                 best_labels = labels
 
-        ref_point = np.max(T, axis=0) * (1 + 0.05)  # margin = 0.05
+        ref_point = np.max(F_pareto, axis=0) * (1 + 0.05)  # margin = 0.05
         self.hv_indicator = HV(ref_point)
 
-        hv_value = self.hv_indicator(T)
+        hv_value = self.hv_indicator(F_pareto)
         self.prev_hv = hv_value
 
         return best_labels
@@ -400,16 +400,16 @@ class DummyDM(BaseDM):
         self.round = 0
         self.score = 'pareto'
 
-    def classify(self, T, X=None, assoc_rules_summary=None):
+    def classify(self, F_pareto, X_pareto, assoc_rules_summary=None):
         """
         Dummy classification: always returns label 1 for all samples.
 
-        :param X:
-        :param T: objective values (unused)
+        :param X_pareto:
+        :param F_pareto: objective values (unused)
         :param assoc_rules_summary: (unused)
         :return: label array of ones
         """
-        n, m = T.shape
+        n, m = F_pareto.shape
         return np.ones(n, dtype=int)
 
     def select(self, rules):
@@ -434,11 +434,7 @@ class DummyDM(BaseDM):
         :param X: (unused)
         :param T: (unused)
         :param rules: (unused)
-        :return: True if 3 rounds completed, False otherwise
+        :return: True if 1 rounds completed, False otherwise
         """
-        if self.round == 3:
-            return True
 
-        self.round += 1
-
-        return False
+        return True

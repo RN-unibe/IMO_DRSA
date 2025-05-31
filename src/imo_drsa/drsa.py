@@ -27,7 +27,7 @@ class DRSA:
                  pareto_set: np.ndarray = None,
                  criteria: Tuple = None,
                  decision_attribute: np.ndarray = None,
-                 direction="down"):
+                 direction="up"):
         """
         :param pareto_front: NumPy array with shape (N, n_var), each row is an object
         :param pareto_set: NumPy array with shape (N, n_var), each row is an object, columns are criteria evaluated on that object
@@ -35,33 +35,30 @@ class DRSA:
         :param decision_attribute: NumPy array of length N, integer‐encoded decision classes (1, ..., m)
         :param direction: str direction of the union
         """
-        self.fit(pareto_front=pareto_front,
-                 pareto_set=pareto_set,
-                 criteria=criteria,
-                 decision_attribute=decision_attribute,
+        self.fit(X_pareto=pareto_front, F_pareto=pareto_set, criteria=criteria, decision_attribute=decision_attribute,
                  direction=direction)
 
-    def fit(self, pareto_front=None,
-            pareto_set: np.ndarray = None,
+    def fit(self, X_pareto=None,
+            F_pareto: np.ndarray = None,
             criteria: Tuple = None,
             decision_attribute: np.ndarray = None,
-            direction="down"):
+            direction="up"):
         """
-        :param pareto_front: NumPy array with shape (N, n_var), each row is an object
-        :param pareto_set: NumPy array with shape (N, n_var), each row is an object, columns are criteria evaluated on that object
+        :param X_pareto: NumPy array with shape (N, n_var), each row is an object
+        :param F_pareto: NumPy array with shape (N, n_var), each row is an object, columns are criteria evaluated on that object
         :param criteria: Tuple of column indices in pareto_set
         :param decision_attribute: NumPy array of length N, integer‐encoded decision classes (1, ..., m)
         :param direction: str direction of the union
         :return self
         """
 
-        self.pareto_front = pareto_front
-        self.pareto_set = pareto_set
+        self.pareto_front = X_pareto
+        self.pareto_set = F_pareto
         self.decision_attribute = decision_attribute
 
-        self.criteria_full = criteria
+        self.criteria = criteria
 
-        self.N = 0 if pareto_set is None else pareto_set.shape[0]
+        self.N = 0 if F_pareto is None else F_pareto.shape[0]
         self.m = 0 if decision_attribute is None else (decision_attribute.max())
 
         self.direction = direction
@@ -167,8 +164,13 @@ class DRSA:
         consistent_mask = np.ones(self.N, dtype=bool)
 
         for t in range(2, self.m + 1):
-            lower = self.lower_approx_up(criteria, t)
-            upper = self.upper_approx_up(criteria, t)
+            if self.direction == "up":
+                lower = self.lower_approx_up(criteria, t)
+                upper = self.upper_approx_up(criteria, t)
+
+            else:  # direction == "down"
+                lower = self.lower_approx_down(criteria, t)
+                upper = self.upper_approx_down(criteria, t)
 
             boundary = upper & ~lower
             consistent_mask &= ~boundary
@@ -184,12 +186,12 @@ class DRSA:
 
         :return: list of reducts.
         """
-        full_quality = self.quality(self.criteria_full)
+        full_quality = self.quality(self.criteria)
 
         reducts = []
 
-        for r in range(1, len(self.criteria_full) + 1):
-            for subset in combinations(self.criteria_full, r):
+        for r in range(1, len(self.criteria) + 1):
+            for subset in combinations(self.criteria, r):
                 if self.quality(subset) == full_quality:
 
                     if not any(set(red).issubset(subset) for red in reducts):
@@ -250,12 +252,12 @@ class DRSA:
         Induce certain and possible decision rules for Cl>=threshold or Cl<=threshold.
         direction: 'up' or 'down'.
 
-        :param criteria: list of column indices in T to use as P subset of F = {f1,...,fn}
+        :param criteria: list of column indices in F_pareto to use as P subset of F = {f1,...,fn}
         :param threshold: int index of class
         :param minimal: bool True if rules should be minimal
         :return: list of induced decision rules of form (profile, concl, support, confidence, kind, direction, desc)
         """
-        criteria = criteria or self.criteria_full
+        criteria = criteria or self.criteria
 
 
         # Select appropriate approximations
@@ -264,13 +266,14 @@ class DRSA:
             upper = self.upper_approx_up(criteria, threshold)
             comp = operator.ge
             conf_fn = lambda mask: (self.decision_attribute[mask] >= threshold).mean()
+            concl = "x is 'good'"
         else:
             lower = self.lower_approx_down(criteria, threshold)
             upper = self.upper_approx_down(criteria, threshold)
             comp = operator.le
             conf_fn = lambda mask: (self.decision_attribute[mask] <= threshold).mean()
+            concl = "x is 'good'"
 
-        concl = "x is 'good'"
 
         seen = set()
         rules = []
@@ -373,29 +376,26 @@ class DRSA:
     # Association-rule mining
     # ---------------------------------------------------------------------------------------------------------- #
     @staticmethod
-    def find_association_rules(pareto_set:np.ndarray,
-                               criteria:Tuple,
-                               min_support: float = 0.1,
-                               min_confidence: float = 0.8,
-                               use_fp: bool = True) -> List[Tuple]:
+    def find_association_rules(F_pareto: np.ndarray, criteria: Tuple, min_support: float = 0.1,
+                               min_confidence: float = 0.8, use_fp: bool = True) -> List[Tuple]:
         """
         Mine association rules among objectives (criteria) in the Pareto set.
         Only criterion bins are used—no decision classes involved.
 
-        :param pareto_set: NumPy array with shape (N, n_var), each row is an object, columns are criteria evaluated on that object
+        :param F_pareto: NumPy array with shape (N, n_var), each row is an object, columns are criteria evaluated on that object
         :param criteria: Tuple of column indices in pareto_set
         :param min_support: minimum support threshold
         :param min_confidence: minimum confidence threshold
         :param use_fp: if True, use fpgrowth; otherwise use apriori
         :return: list of (antecedents, consequents, support, confidence, description)
         """
-        assert pareto_set is not None, "Pareto set is None"
+        assert F_pareto is not None, "F_pareto is None"
         assert criteria is not None, "Criteria is None"
 
-        bin_edges = {i: np.percentile(pareto_set[:, i], [25, 50, 75]) for i in criteria}
+        bin_edges = {i: np.percentile(F_pareto[:, i], [25, 50, 75]) for i in criteria}
 
         transactions = []
-        for x in pareto_set:
+        for x in F_pareto:
             items = []
 
             for i in criteria:
