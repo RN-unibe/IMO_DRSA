@@ -10,14 +10,14 @@ class TestDRSA(TestCase):
     np.random.seed(42)
 
     def setUp(self):
-        self.T = np.array([[5, 7],
+        self.F = np.array([[5, 7],
                            [3, 4],
                            [6, 2],
                            [4, 6],
                            [2, 5]])
         self.d = np.array([1, 1, 3, 2, 2])
         # Initialize DRSA with full criteria
-        self.drsa = DRSA(F_pareto_gain_type=self.T, criteria=(0, 1), decision_attribute=self.d)
+        self.drsa = DRSA().fit(F_pareto_gain_type=self.F, criteria=(0, 1), decision_attribute=self.d)
 
     def test_positive_cone(self):
         pos = self.drsa.positive_cone((0, 1))
@@ -36,9 +36,8 @@ class TestDRSA(TestCase):
         # Negative cone should be the transpose of the positive cone
         pos = self.drsa.positive_cone((0, 1))
 
-        expected = pos.T
 
-        self.assertTrue(np.array_equal(neg, expected), f"Negative cone incorrect: {neg}")
+        self.assertTrue(np.array_equal(neg, pos.T), f"Negative cone incorrect: {neg}")
 
     def test_approximations(self):
         low_up = self.drsa.lower_approx_up((0, 1), threshold=2)
@@ -97,7 +96,7 @@ class TestDRSA2D(TestCase):
         self.pareto_set = np.array([[1, 2], [2, 1]])
         self.dec_attr = np.array([1, 2])
         self.criteria = (0, 1)
-        self.drsa = DRSA(F_pareto_gain_type=self.pareto_set, criteria=self.criteria, decision_attribute=self.dec_attr)
+        self.drsa = DRSA().fit(F_pareto_gain_type=self.pareto_set, criteria=self.criteria, decision_attribute=self.dec_attr)
 
     def test_positive_cone(self):
         expected = np.array([[True, False], [False, True]])
@@ -132,7 +131,7 @@ class TestDRSA1D(TestCase):
         self.pareto_set = np.array([[1], [2], [3]])
         self.dec_attr = np.array([1, 2, 3])
         self.criteria = (0,)
-        self.drsa = DRSA(F_pareto_gain_type=self.pareto_set, criteria=self.criteria, decision_attribute=self.dec_attr)
+        self.drsa = DRSA().fit(F_pareto_gain_type=self.pareto_set, criteria=self.criteria, decision_attribute=self.dec_attr)
 
     def test_quality_and_reducts(self):
         # Full quality should be 1.0
@@ -188,9 +187,6 @@ class TestAssociationRules(TestCase):
 
         self.assertTrue(expected1 in summary)
         self.assertTrue(expected2 not in summary)
-
-
-
 
 
 if __name__ == '__main__':

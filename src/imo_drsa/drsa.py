@@ -14,40 +14,20 @@ class DRSA:
     Dominance-Based Rough Set Approach (DRSA) for multicriteria sorting and rule induction.
 
 
-    :param F_pareto_gain_type: Data matrix of shape (N, n_features).
-    :param decision_attribute: Decision array of length N, encoded as integers 1 to m.
-    :param criteria_full: Tuple of all criterion indices.
-    :param criteria_reduct: Tuple of current reduct criteria indices.
-    :param N: Number of objects.
-    :param n_features: Number of criteria/features.
-    :param m: Number of decision classes.
+    :param F_pareto_gain_type: NumPy array with shape (N, n_var), each row is an object, columns are criteria evaluated on that object
+    :param criteria: Tuple of column indices in pareto_set
+    :param decision_attribute: NumPy array of length N, integer‐encoded decision classes (1, ..., m)
+    :param direction: str direction of the union
     """
 
-    def __init__(self, X_pareto=None,
-                 F_pareto_gain_type: np.ndarray = None,
-                 criteria: Tuple = None,
-                 decision_attribute: np.ndarray = None,
-                 direction="up"):
-        """
-        :param X_pareto: NumPy array with shape (N, n_var), each row is an object
-        :param F_pareto_gain_type: NumPy array with shape (N, n_var), each row is an object, columns are criteria evaluated on that object
-        :param criteria: Tuple of column indices in pareto_set
-        :param decision_attribute: NumPy array of length N, integer‐encoded decision classes (1, ..., m)
-        :param direction: str direction of the union
-        """
-        self.fit(X_pareto=X_pareto,
-                 F_pareto_gain_type=F_pareto_gain_type,
-                 criteria=criteria,
-                 decision_attribute=decision_attribute,
-                 direction=direction)
+    def __init__(self):
+        self.is_fit = False
 
-    def fit(self, X_pareto=None,
-            F_pareto_gain_type: np.ndarray = None,
+    def fit(self, F_pareto_gain_type: np.ndarray = None,
             criteria: Tuple = None,
             decision_attribute: np.ndarray = None,
             direction="up"):
         """
-        :param X_pareto: NumPy array with shape (N, n_var), each row is an object
         :param F_pareto_gain_type: NumPy array with shape (N, n_var), each row is an object, columns are criteria evaluated on that object
         :param criteria: Tuple of column indices in pareto_set
         :param decision_attribute: NumPy array of length N, integer‐encoded decision classes (1, ..., m)
@@ -55,8 +35,11 @@ class DRSA:
         :return self
         """
 
-        self.pareto_front = X_pareto
-        self.pareto_set = F_pareto_gain_type
+        assert F_pareto_gain_type is not None, "F_pareto_gain_type is None"
+        assert criteria is not None, "criteria is None"
+        assert decision_attribute is not None, "decision_attribute is None"
+
+        self.F_pareto = F_pareto_gain_type
         self.decision_attribute = decision_attribute
 
         self.criteria = criteria
@@ -65,6 +48,7 @@ class DRSA:
         self.m = 0 if decision_attribute is None else (decision_attribute.max())
 
         self.direction = direction
+        self.is_fit = True
 
         return self
 
@@ -79,10 +63,11 @@ class DRSA:
         :param criteria: Tuple of column indices in T to use as P subset of F = {f1,...,fn}
         :return: the P-dominating set of x
         """
+        assert self.is_fit, "DRSA has not been fit."
         mask = np.ones((self.N, self.N), dtype=bool)
 
         for idx in criteria:
-            vals = self.pareto_set[:, idx]
+            vals = self.F_pareto[:, idx]
             mask &= vals[:, None] >= vals[None, :]
 
         return mask
@@ -94,10 +79,11 @@ class DRSA:
         :param criteria: Tuple of column indices in T to use as P subset of F = {f1,...,fn}
         :return: the P-dominated set of x
         """
+        assert self.is_fit, "DRSA has not been fit."
         mask = np.ones((self.N, self.N), dtype=bool)
 
         for idx in criteria:
-            vals = self.pareto_set[:, idx]
+            vals = self.F_pareto[:, idx]
             mask &= vals[:, None] <= vals[None, :]
 
         return mask
@@ -114,6 +100,7 @@ class DRSA:
         :param threshold: int index of class
         :return: np.ndarray containing the lower approximation of upward union
         """
+        assert self.is_fit, "DRSA has not been fit."
         cone = self.positive_cone(criteria)
 
         return np.all(~cone | (self.decision_attribute[:, None] >= threshold), axis=0)
@@ -126,6 +113,7 @@ class DRSA:
         :param threshold: int index of class
         :return: np.ndarray containing the upper approximation of upward union
          """
+        assert self.is_fit, "DRSA has not been fit."
         cone = self.negative_cone(criteria)
 
         return np.any(cone & (self.decision_attribute[:, None] >= threshold), axis=0)
@@ -138,6 +126,7 @@ class DRSA:
         :param threshold: int index of class
         :return: np.ndarray containing the lower approximation of downward union
         """
+        assert self.is_fit, "DRSA has not been fit."
         cone = self.negative_cone(criteria)
 
         return np.all(~cone | (self.decision_attribute[:, None] <= threshold), axis=0)
@@ -150,6 +139,7 @@ class DRSA:
         :param threshold: int index of class
         :return: np.ndarray containing the upper approximation of downward union
         """
+        assert self.is_fit, "DRSA has not been fit."
         cone = self.positive_cone(criteria)
 
         return np.any(cone & (self.decision_attribute[:, None] <= threshold), axis=0)
@@ -164,6 +154,7 @@ class DRSA:
 
         :param criteria: Tuple of column indices in T to use as P subset of F = {f1,...,fn}
         """
+        assert self.is_fit, "DRSA has not been fit."
         consistent_mask = np.ones(self.N, dtype=bool)
 
         for t in range(2, self.m + 1):
@@ -189,6 +180,7 @@ class DRSA:
 
         :return: list of reducts.
         """
+        assert self.is_fit, "DRSA has not been fit."
         full_quality = self.quality(self.criteria)
 
         reducts = []
@@ -211,6 +203,7 @@ class DRSA:
         Compute core criteria as intersection of all reducts.
         :param reducts: List of reducts as Tuples
         """
+        assert self.is_fit, "DRSA has not been fit."
         reducts = reducts or self.find_reducts()
 
         if not reducts:
@@ -238,6 +231,7 @@ class DRSA:
         :param kind: str type of rule
         :return: rule description
         """
+        assert self.is_fit, "DRSA has not been fit."
         conds = []
 
         for idx, val in profile.items():
@@ -262,6 +256,7 @@ class DRSA:
         :param minimal: bool True if rules should be minimal
         :return: list of induced decision rules of form (profile, concl, support, confidence, kind, direction, desc)
         """
+        assert self.is_fit, "DRSA has not been fit."
         criteria = criteria or self.criteria
 
 
@@ -284,11 +279,11 @@ class DRSA:
         rules = []
         for kind, indices in [('certain', np.where(lower)[0]), ('possible', np.where(upper & ~lower)[0])]:
             for idx in indices:
-                profile = {i: self.pareto_set[idx, i] for i in criteria}
+                profile = {i: self.F_pareto[idx, i] for i in criteria}
                 mask = np.ones(self.N, dtype=bool)
 
                 for i, val in profile.items():
-                    mask &= comp(self.pareto_set[:, i], val)
+                    mask &= comp(self.F_pareto[:, i], val)
 
                 support = mask.mean()
                 confidence = conf_fn(mask)
@@ -323,6 +318,7 @@ class DRSA:
         :param r2: Tuple rule which migh subsume r1
         :return: True if premise of r1 is weaker than premise of r2, but has the same outcome, False otherwise.
         """
+        assert self.is_fit, "DRSA has not been fit."
         p1 = r1[0]
         p2 = r2[0]
         # r1 subsumes r2 if p1 is weaker (i.e., thresholds for >= lower, <= higher)
@@ -337,17 +333,18 @@ class DRSA:
         return True
 
     def is_robust(self, rule):
+        assert self.is_fit, "DRSA has not been fit."
         profile, _, _, _, kind, _, _ = rule
         mask = np.ones(self.N, dtype=bool)
         cmp_op = operator.ge if self.direction == 'up' else operator.le
 
         for i, val in profile.items():
-            mask &= cmp_op(self.pareto_set[:, i], val)
+            mask &= cmp_op(self.F_pareto[:, i], val)
 
         # Base: exact match
         base_mask = np.ones(self.N, dtype=bool)
         for i, val in profile.items():
-            base_mask &= self.pareto_set[:, i] == val
+            base_mask &= self.F_pareto[:, i] == val
 
         return bool(np.any(base_mask & mask))
 
