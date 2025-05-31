@@ -220,8 +220,7 @@ class TestFaultySelections(TestCase):
 
         engine.problem.add_constraints(new_constraints)
 
-        # Compute Pareto front under current constraints
-        pareto_front_sample, pareto_set_sample = engine.calculate_pareto_front()
+        _, _ = engine.calculate_pareto_front()
 
 
 

@@ -252,18 +252,18 @@ class DRSA:
 
         :return: list of induced decision rules of form (profile, concl, support, confidence, kind, direction, desc)
         """
-        crit = criteria #or self.criteria_full
+        criteria = criteria or self.criteria_full
 
 
         # Select appropriate approximations
         if self.direction == 'up':
-            lower = self.lower_approx_up(crit, threshold)
-            upper = self.upper_approx_up(crit, threshold)
+            lower = self.lower_approx_up(criteria, threshold)
+            upper = self.upper_approx_up(criteria, threshold)
             comp = operator.ge
             conf_fn = lambda mask: (self.decision_attribute[mask] >= threshold).mean()
         else:
-            lower = self.lower_approx_down(crit, threshold)
-            upper = self.upper_approx_down(crit, threshold)
+            lower = self.lower_approx_down(criteria, threshold)
+            upper = self.upper_approx_down(criteria, threshold)
             comp = operator.le
             conf_fn = lambda mask: (self.decision_attribute[mask] <= threshold).mean()
 
@@ -273,7 +273,7 @@ class DRSA:
         rules = []
         for kind, indices in [('certain', np.where(lower)[0]), ('possible', np.where(upper & ~lower)[0])]:
             for idx in indices:
-                profile = {i: self.pareto_set[idx, i] for i in crit}
+                profile = {i: self.pareto_set[idx, i] for i in criteria}
                 mask = np.ones(self.N, dtype=bool)
 
                 for i, val in profile.items():
