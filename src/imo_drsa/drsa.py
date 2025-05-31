@@ -507,6 +507,9 @@ class DRSA:
                 dir_a = "higher" if q_a >= 3 else "lower"
                 dir_c = "higher" if q_c >= 3 else "lower"
 
+                if idx_a != idx_c and dir_a != dir_c:
+                    continue
+
                 text = f"If objective {idx_a} is {dir_a}, objective {idx_c} tends to be {dir_c}"
                 simple_rules.append((text, sup, conf))
 

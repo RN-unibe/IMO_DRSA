@@ -167,9 +167,10 @@ class TestAssociationRules(TestCase):
         rules = DRSA.find_association_rules(F_pareto=T, criteria=(0, 1, 2), min_support=0.1, min_confidence=0.8)
 
 
-        summary, _ = DRSA.summarize_association_rules(rules)
+        summary, s = DRSA.summarize_association_rules(rules)
+        print(s)
 
-        self.assertEqual(len(summary), 18)
+        self.assertEqual(len(summary), 10)
 
 
     def test_find_association_rules(self):
@@ -182,9 +183,10 @@ class TestAssociationRules(TestCase):
 
 
         summary, s = DRSA.summarize_association_rules(rules)
+        print(s)
 
-        expected1 = ("If objective 1 is higher, objective 2 tends to be lower", 0.4, 1.0)
-        expected2 = ("If objective 1 is higher, objective 2 tends to be higher", 0.2, 1.0)
+        expected1 = ("If objective 1 is lower, objective 2 tends to be lower", 0.2, 1.0)
+        expected2 = ("If objective 1 is higher, objective 2 tends to be lower", 0.2, 1.0)
 
 
         self.assertTrue(expected1 in summary)
