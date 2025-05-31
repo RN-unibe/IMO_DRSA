@@ -1,11 +1,13 @@
 import unittest
 from unittest import TestCase
+from unittest.mock import patch
 
 import numpy as np
 
 from pymoo.problems import get_problem
 
 from src.imo_drsa.decision_maker import DummyDM, InteractiveDM, AutomatedDM
+from src.imo_drsa.drsa import DRSA
 from src.imo_drsa.engine import IMO_DRSAEngine
 
 
@@ -53,7 +55,7 @@ class TestIMO_DRSAEngine(TestCase):
 class TestIMO_DRSAEngineProblemSolving(TestCase):
 
     def setUp(self):
-        self.verbose = True
+        self.verbose = False
         self.visualise = self.verbose
         self.max_iter = 4
         np.random.seed(42)
@@ -79,7 +81,7 @@ class TestIMO_DRSAEngineProblemSolving(TestCase):
 
         engine = IMO_DRSAEngine().fit(problem=problem, objectives=objectives, verbose=self.verbose)
 
-        success = engine.run(dm, visualise=self.visualise, max_iter=self.max_iter)
+        success = engine.run(dm, max_iter=self.max_iter)
 
         self.assertTrue(success)
 
@@ -103,7 +105,7 @@ class TestIMO_DRSAEngineProblemSolving(TestCase):
 
         engine = IMO_DRSAEngine().fit(problem=problem, objectives=objectives, verbose=self.verbose)
 
-        success = engine.run(dm, visualise=self.visualise, max_iter=self.max_iter)
+        success = engine.run(dm, max_iter=self.max_iter)
 
         self.assertTrue(success)
 
@@ -122,7 +124,7 @@ class TestIMO_DRSAEngineProblemSolving(TestCase):
 
         engine = IMO_DRSAEngine().fit(problem=problem, objectives=objectives, verbose=self.verbose)
 
-        success = engine.run(dm, visualise=self.visualise, max_iter=self.max_iter)
+        success = engine.run(dm, max_iter=self.max_iter)
 
         self.assertTrue(success)
 
@@ -153,9 +155,73 @@ class TestIMO_DRSAEngineProblemSolving(TestCase):
 
         engine = IMO_DRSAEngine().fit(problem=problem, objectives=objectives, verbose=self.verbose)
 
-        success = engine.run(dm, visualise=self.visualise, max_iter=self.max_iter)
+        success = engine.run(dm, max_iter=self.max_iter)
 
         self.assertTrue(success)
+
+class TestFaultySelections(TestCase):
+
+    @patch('builtins.input', return_value='2,5')
+    def test_empty_pareto_front(self, mock_input):
+        dm = InteractiveDM()
+        problem = get_problem("bnh")
+
+        def f0(x):
+            return 4 * x[0] * x[0] + 4 * x[1] * x[1]
+
+        def f1(x):
+            term1 = x[0] - 5
+            term2 = x[1] - 5
+
+            return term1 * term1 + term2 * term2
+
+        objectives = [f0, f1]
+
+        engine = IMO_DRSAEngine().fit(problem=problem, objectives=objectives, verbose=False)
+
+        X = np.array([[2.6309, 2.8100],
+            [0.9031, 0.7224],
+            [1.6355, 1.4473],
+            [4.0138, 2.9486],
+            [0.2065, 0.1939],
+            [1.2023, 1.2442],
+            [0.9649, 0.8549],
+            [2.3048, 2.3299],
+            [4.8183, 2.9940],
+            [2.2535, 2.2455]])
+
+        T = np.array([[59.2711, 10.4087],
+            [5.3494, 35.0830],
+            [19.0782, 23.9415],
+            [99.2194, 5.1809],
+            [0.3209, 46.0764],
+            [11.9741, 28.5287],
+            [6.6477, 33.4637],
+            [42.9620, 14.3936],
+            [128.7210, 4.0571],
+            [40.4825, 15.1304]])
+
+        crit = (0, 1)
+
+        d = np.ones(10)
+        d[2] = 2
+        d[5] = 2
+
+        drsa = DRSA()
+        drsa.fit(pareto_front=X, pareto_set=T, criteria=crit, decision_attribute=d)
+
+        rules = drsa.induce_decision_rules()
+        DRSA.explain_rules(rules)
+
+        chosen = dm.select(rules)
+        DRSA.explain_rules(chosen)
+
+        new_constraints = engine.generate_constraints(rules)
+
+        engine.problem.add_constraints(new_constraints)
+
+        # Compute Pareto front under current constraints
+        pareto_front_sample, pareto_set_sample = engine.calculate_pareto_front()
 
 
 

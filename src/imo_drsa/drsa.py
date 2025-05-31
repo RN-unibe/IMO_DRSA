@@ -252,7 +252,7 @@ class DRSA:
 
         :return: list of induced decision rules of form (profile, concl, support, confidence, kind, direction, desc)
         """
-        crit = criteria or self.criteria_full
+        crit = criteria #or self.criteria_full
 
 
         # Select appropriate approximations
@@ -349,12 +349,15 @@ class DRSA:
         """
         explanations = []
 
+        idx = 0
         for rule in rules:
             desc = rule[-1]
-            explanations.append(desc)
+            explanations.append(f'[{idx}] {desc}')
+
 
             if verbose:
-                print(desc)
+                print(f'[{idx}] {desc}')
+            idx += 1
 
         return explanations
 

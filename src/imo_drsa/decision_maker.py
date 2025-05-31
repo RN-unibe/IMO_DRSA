@@ -101,6 +101,10 @@ class BaseDM:
         """
         return False
 
+    def print_samples(self, pareto_set_sample, pareto_front_sample):
+        pass
+
+
 # ---------------------------------------------------------------------------------------------------------- #
 # Interactive DM
 # ---------------------------------------------------------------------------------------------------------- #
@@ -127,29 +131,12 @@ class InteractiveDM(BaseDM):
             print("\nAssociation Rules:")
             print(assoc_rules_summary)
 
-        data = []
-        for idx, obj in enumerate(T):
-            x_vals = np.atleast_1d(X[idx])
-            o_vals = np.atleast_1d(obj)
-
-            fmt = lambda seq: "[" + ", ".join(f"{v:.4f}" for v in seq) + "]"
-
-            var_str = fmt(x_vals)
-            obj_str = fmt(o_vals)
-
-            row = {"# ": f"[{idx}]", " [x_1, ..., x_n]": var_str, " [f_1(x), ..., f_m(x)]": obj_str}
-            data.append(row)
-
-        df = pd.DataFrame(data)
-
-        print("\nCurrent Pareto sample (X) and their evaluation (F(X)):")
-        print(df.to_string(justify='middle',index=False))
+        self.print_samples(T, X)
 
         prompt = "\nSelect indices (#) of samples with 'good' evaluation (comma-separated) \n(Press Enter if none are satisfactory): \n"
 
         while True:
             selection = input(prompt).strip()
-            # empty → user skips
             if not selection:
                 good_idxs = set()
                 break
@@ -171,10 +158,8 @@ class InteractiveDM(BaseDM):
             if invalids:
                 print("Invalid input. Please enter valid sample indices (0 to "
                       f"{len(T) - 1}), separated by commas.")
-                # loop back, but do *not* reprint the table
                 continue
 
-            # all tokens were valid
             break
 
         labels = np.ones(len(T), dtype=int)
@@ -184,6 +169,24 @@ class InteractiveDM(BaseDM):
 
         return labels
 
+    def print_samples(self, pareto_set_sample, pareto_front_sample):
+        data = []
+        for idx, obj in enumerate(pareto_set_sample):
+            x_vals = np.atleast_1d(pareto_front_sample[idx])
+            o_vals = np.atleast_1d(obj)
+
+            fmt = lambda seq: "[" + ", ".join(f"{v:.4f}" for v in seq) + "]"
+
+            var_str = fmt(x_vals)
+            obj_str = fmt(o_vals)
+
+            row = {"# ": f"[{idx}]", " [x_1, ..., x_n]": var_str, " [f_1(x), ..., f_m(x)]": obj_str}
+            data.append(row)
+
+        df = pd.DataFrame(data)
+        print("\nCurrent Pareto sample (X) and their evaluation (F(X)):")
+        print(df.to_string(justify='middle', index=False))
+        
 
     def select_reduct(self, reducts, core):
         assert reducts is not None, "Reducts list is empty, iteration was not skipped!"
@@ -218,10 +221,8 @@ class InteractiveDM(BaseDM):
         assert rules is not None, "Rule list is empty, iteration was not skipped!"
 
         # 1) Show the available rules
-        print("\nInduced Decision Rules:")
-        descriptions = DRSA.explain_rules(rules, verbose=False)
-        for idx, desc in enumerate(descriptions):
-            print(f"[{idx}] {desc}")
+        print("\nBased on your selection, the following Decision Rules were induced:")
+        _ = DRSA.explain_rules(rules, verbose=True)
 
         prompt = "\nSelect rule(s) to enforce in the next iteration (comma-separated) \n(Press enter to skip): "
 
@@ -265,24 +266,6 @@ class InteractiveDM(BaseDM):
         :param rules: enforced DRSA rules (unused)
         :return: True if the user selects a solution to end, False otherwise
         """
-        data = []
-        for idx, obj in enumerate(T):
-            x_vals = np.atleast_1d(X[idx])
-            o_vals = np.atleast_1d(obj)
-
-            fmt = lambda seq: "[" + ", ".join(f"{v:.4f}" for v in seq) + "]"
-
-            var_str = fmt(x_vals)
-            obj_str = fmt(o_vals)
-
-            row = {"# ": f"[{idx}]", " [x_1, ..., x_n]": var_str, " [f_1(x), ..., f_m(x)]": obj_str}
-            data.append(row)
-
-        df = pd.DataFrame(data)
-
-        print("\nNew Pareto sample (X) and their evaluation (F(X)):")
-        print(df.to_string(justify='middle', index=False))
-
         selection = input("\nWould you like to terminate? (y, n): ")
 
         if selection.strip().lower() == 'y':

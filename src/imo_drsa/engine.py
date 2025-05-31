@@ -42,11 +42,12 @@ class IMO_DRSAEngine():
         self.pareto_set = None
         self.rules = None
 
-    def fit(self, problem: Problem, objectives: List[Callable] = None, verbose: bool = False, to_file=True,
-            pymoo_verbose=False):
+    def fit(self, problem: Problem, objectives: List[Callable] = None, verbose: bool = False, visualise=False,
+            to_file=True, pymoo_verbose=False):
         """
         Fit the IMO-DRSA solver.
 
+        :param visualise:
         :param problem: Problem to be optimised
         :param objectives: List of objective functions mapping a solution vector to a float.
         :param verbose: bool if graphs and printouts should be given
@@ -57,6 +58,7 @@ class IMO_DRSAEngine():
         self.problem = self.wrapper.enable_dynamic_constraints(problem=problem)
         self.objectives = objectives
         self.verbose = verbose
+        self.visualise = visualise
         self.pymoo_verbose = pymoo_verbose
         self.pareto_front, self.pareto_set = None, None
 
@@ -71,24 +73,23 @@ class IMO_DRSAEngine():
 
         return self
 
-    def run(self, decision_maker: BaseDM, visualise: bool = False, max_iter: int = 5) -> bool:
+    def run(self, decision_maker: BaseDM, max_iter: int = 5) -> bool:
         """
         Run the interactive optimisation loop.
 
         :param decision_maker: Interface for classification and feedback.
-        :param visualise: Whether to plot the Pareto front each iteration.
         :param max_iter: Maximum interactive iterations.
         :return: True if session finishes successfully, False otherwise.
         """
 
         P_idx = tuple([i for i in range(0, len(self.objectives))])
         decision_attribute = None
-        pareto_front_sample, pareto_set_sample = self.calculate_pareto_front(pop_size=100)
 
         iteration: int = 0
         while iteration < max_iter:
 
-            print(len(self.pareto_front))
+            pareto_front_sample, pareto_set_sample = self.calculate_pareto_front(pop_size=100, sample_size=10)
+
 
             state_backup = {
                 'problem': deepcopy(self.problem),
@@ -99,7 +100,7 @@ class IMO_DRSAEngine():
             
             self.history.append(state_backup)
 
-            if visualise:
+            if self.visualise:
                 self.visualise2D(pareto_front_sample, pareto_set_sample, iter=iteration, nr=1)
 
             self.drsa.fit(pareto_set=pareto_set_sample, criteria=P_idx, decision_attribute=decision_attribute)
@@ -117,7 +118,6 @@ class IMO_DRSAEngine():
 
             if 2 not in decisions: # No samples were considered 'good', i.e., none are in class 2
                 print("Trying again...")
-                pareto_front_sample, pareto_set_sample = self.calculate_pareto_front()
                 continue
 
             # Find a reduct and induce decision rules
@@ -128,15 +128,14 @@ class IMO_DRSAEngine():
 
             reduct = decision_maker.select_reduct(reducts, core)
 
-            self.rules = self.drsa.induce_decision_rules(reduct, minimal=False)
+            self.rules = self.drsa.induce_decision_rules(reduct, minimal=True)
 
             # DM selects preferred rules
             selected = decision_maker.select(self.rules)
             # print(selected)
 
-            if len(selected) == 0:
+            if len(selected) == 0 or selected is None:
                 print("Trying again...")
-                pareto_front_sample, pareto_set_sample = self.calculate_pareto_front()
                 continue
 
             # Generate new constraints from selected rules
@@ -146,40 +145,39 @@ class IMO_DRSAEngine():
             # Compute Pareto front under current constraints
             pareto_front_sample, pareto_set_sample = self.calculate_pareto_front()
 
+            # If the constraints create a solely infeasible- or empty region, the last selection is undone
+            if pareto_front_sample is None or pareto_front_sample.size == 0:
+                print("Infeasible constraints, Pareto Front was empty. Please try again.")
+                self.front_sample, self.set_sample, self.rules = self.undo_last()
+                continue
 
-            if visualise:
+
+            if self.visualise:
                 self.visualise2D(pareto_front_sample, pareto_set_sample, iter=iteration, nr=2)
+
+            if decision_maker.is_interactive():
+                decision_maker.print_samples(pareto_set_sample, pareto_front_sample)
 
             if decision_maker.is_interactive():
                 undo = input("Do you want to undo the last selection? (y/n): ")
 
                 if undo.lower() == 'y':
-                    pareto_front_sample, pareto_set_sample, rules = self.undo_last()
+                    self.front_sample, self.set_sample, self.rules = self.undo_last()
                     continue
 
             # Ask DM if current solutions are satisfactory
             if decision_maker.is_satisfied(pareto_front_sample, pareto_set_sample, self.rules):
                 print("DM is satisfied. Terminating Process")
 
-
                 if self.to_file:
                     self.write_to_file()
 
                 return True
 
-            # If the constraints create a solely infeasible- or empty region, the last selection is undone
-            if pareto_front_sample is None or pareto_front_sample.size == 0:
-                print("Infeasible constraints: please revise.")
-
-                pareto_front_sample, pareto_set_sample, self.rules = self.undo_last()
-
-                continue
-
             iteration += 1
 
         print('Maximum iterations reached.')
         print('Terminating now.')
-
 
         return False
 
@@ -224,8 +222,8 @@ class IMO_DRSAEngine():
         all_kwargs = {} if all_kwargs is None else all_kwargs
         sub_kwargs = {} if sub_kwargs is None else sub_kwargs
 
-        all_defaults = dict(color='lightgrey', marker='o', label='all points')
-        sub_defaults = dict(color='red', marker='x', s=100, label='subset')
+        all_defaults = dict(color='lightgrey', marker='o', label='Full Set')
+        sub_defaults = dict(color='red', marker='x', s=100, label='Given Samples Subset')
 
         all_style = {**all_defaults, **all_kwargs}
         sub_style = {**sub_defaults, **sub_kwargs}
@@ -274,12 +272,11 @@ class IMO_DRSAEngine():
             out_dir = self.out_dir
             plt.savefig(f"{out_dir}/graph_{iter}.{nr}.png", format='png')
 
-        if self.verbose:
-            plt.show()
+        plt.show()
 
 
 
-    def calculate_pareto_front(self, n_gen=100, pop_size=100, sample_size=10) -> (np.ndarray, np.ndarray):
+    def calculate_pareto_front(self, n_gen=100, pop_size=1000, sample_size=10) -> (np.ndarray, np.ndarray):
         """
         Compute Pareto-optimal set using NSGA2 algorithm.
 
@@ -290,9 +287,13 @@ class IMO_DRSAEngine():
 
         :return: Tuple of decision variables (pareto_front) and objective values of Pareto front (pareto_set).
         """
-        pop_size = pop_size if pop_size >= sample_size else 10
         res = minimize(self.problem, NSGA2(pop_size=pop_size), termination=('n_gen', n_gen), verbose=self.pymoo_verbose)
-        self.pareto_front, self.pareto_set = res.X, res.F
+        new_pareto_front, new_pareto_set = res.X, res.F
+
+        if new_pareto_front is not None and new_pareto_set is not None:
+            self.pareto_front, self.pareto_set = new_pareto_front, new_pareto_set
+        else:
+            return None, None
 
         sample = min(len(self.pareto_front), sample_size)
         idx = np.random.choice(len(self.pareto_front), sample, replace=False)
@@ -300,7 +301,13 @@ class IMO_DRSAEngine():
         pareto_front_sample = self.pareto_front[idx]
         pareto_set_sample = self.pareto_set[idx]
 
+        if self.verbose:
+            print(f'Total size of Pareto Front: {len(self.pareto_front)}')
+
         return pareto_front_sample, pareto_set_sample
+
+
+
 
     def generate_constraints(self, selected_rules, elementwise=None) -> List[Callable]:
         """

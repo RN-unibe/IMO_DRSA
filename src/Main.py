@@ -4,14 +4,15 @@ from imo_drsa.engine import IMO_DRSAEngine
 from pymoo.problems import get_problem
 
 if __name__ == "__main__":
+    # 1. Create an Interactive Decision Maker
     dm = InteractiveDM()
 
+    # 2. Instantiate your problem. This must be pymoo compatible.
     problem = get_problem("bnh")
 
-
+    # 3. Define the objectives explicitly as Python callables.
     def f0(x):
         return 4 * x[0] * x[0] + 4 * x[1] * x[1]
-
 
     def f1(x):
         term1 = x[0] - 5
@@ -19,9 +20,13 @@ if __name__ == "__main__":
 
         return term1 * term1 + term2 * term2
 
-
     objectives = [f0, f1]
 
-    engine = IMO_DRSAEngine().fit(problem=problem, objectives=objectives, verbose=False)
+    # 4. Fit the IMO-DRSA Engine with the chosen problem and objectives
+    engine = IMO_DRSAEngine().fit(problem=problem, objectives=objectives,
+                                  verbose=True,   # Set Ture to be given print out updates
+                                  visualise=True, # Set True to be given 2D plots of the current pareto fronts and sets
+                                  to_file=True)  # Set True to save outputs to “results_YYYYMMDD_HHMMSS/”)
 
-    success = engine.run(dm, max_iter=4, visualise=True)
+    # 5. Run the engine
+    success = engine.run(dm, max_iter=4)
