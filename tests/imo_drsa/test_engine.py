@@ -57,6 +57,7 @@ class TestIMO_DRSAEngineProblemSolving(TestCase):
     def setUp(self):
         self.verbose = False
         self.visualise = self.verbose
+        self.to_file = self.verbose
         self.max_iter = 4
         np.random.seed(42)
 
@@ -79,7 +80,7 @@ class TestIMO_DRSAEngineProblemSolving(TestCase):
 
         objectives = [f0, f1]
 
-        engine = IMO_DRSAEngine().fit(problem=problem, objectives=objectives, verbose=self.verbose)
+        engine = IMO_DRSAEngine().fit(problem=problem, objectives=objectives, verbose=self.verbose, to_file=self.to_file)
 
         success = engine.run(dm, max_iter=self.max_iter)
 
@@ -103,7 +104,7 @@ class TestIMO_DRSAEngineProblemSolving(TestCase):
 
         objectives = [f0, f1]
 
-        engine = IMO_DRSAEngine().fit(problem=problem, objectives=objectives, verbose=self.verbose)
+        engine = IMO_DRSAEngine().fit(problem=problem, objectives=objectives, verbose=self.verbose, to_file=self.to_file)
 
         success = engine.run(dm, max_iter=self.max_iter)
 
@@ -122,7 +123,7 @@ class TestIMO_DRSAEngineProblemSolving(TestCase):
 
         objectives = [f0, f1]
 
-        engine = IMO_DRSAEngine().fit(problem=problem, objectives=objectives, verbose=self.verbose)
+        engine = IMO_DRSAEngine().fit(problem=problem, objectives=objectives, verbose=self.verbose, to_file=self.to_file)
 
         success = engine.run(dm, max_iter=self.max_iter)
 
@@ -153,7 +154,7 @@ class TestIMO_DRSAEngineProblemSolving(TestCase):
 
         objectives = dtlz1(3)
 
-        engine = IMO_DRSAEngine().fit(problem=problem, objectives=objectives, verbose=self.verbose)
+        engine = IMO_DRSAEngine().fit(problem=problem, objectives=objectives, verbose=self.verbose, to_file=self.to_file)
 
         success = engine.run(dm, max_iter=self.max_iter)
 
