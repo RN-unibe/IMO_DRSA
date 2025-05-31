@@ -166,6 +166,7 @@ class TestDecisionRuleFormatting(TestCase):
 
 class TestAssociationRules(TestCase):
 
+
     def test_find_association_rules_multiple_criteria(self):
         # Three‐objective dataset
         T = np.array([
@@ -179,9 +180,10 @@ class TestAssociationRules(TestCase):
         rules = DRSA.find_association_rules(pareto_set=T, criteria=(0, 1, 2), min_support=0.1, min_confidence=0.8)
 
 
-        summary, s = DRSA.summarize_association_rules(rules)
+        summary, _ = DRSA.summarize_association_rules(rules)
 
-        print(s)
+        self.assertEqual(len(summary), 18)
+
 
 
 
@@ -195,8 +197,6 @@ class TestAssociationRules(TestCase):
 
 
         summary, s = DRSA.summarize_association_rules(rules)
-
-        print(s)
 
         expected1 = ("If objective 1 is higher, objective 2 tends to be lower", 0.4, 1.0)
         expected2 = ("If objective 1 is higher, objective 2 tends to be higher", 0.2, 1.0)

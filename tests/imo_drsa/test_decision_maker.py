@@ -13,7 +13,8 @@ from src.imo_drsa.drsa import DRSA
 class TestInteractiveDM(TestCase):
 
     @patch('builtins.input', return_value='\n')
-    def test_classify(self, mock_input):
+    @patch('builtins.print')
+    def test_classify(self, mock_input, mock_print):
         dm = InteractiveDM()
         T = np.array([1, 1, 1, 1])
         X = np.array([1, 1, 1, 1])
@@ -30,7 +31,8 @@ class TestInteractiveDM(TestCase):
 # ---------------------------------------------------------------------------------------------------------- #
 class TestAutomatedDM(TestCase):
 
-    def test_select(self):
+    @patch('builtins.print')
+    def test_select(self, mock_print):
         dm = AutomatedDM()
 
         rules = [({0: 1.0, 1: 2.0}, 'd>=2', 0.5, 0.9, 'certain', 'up',

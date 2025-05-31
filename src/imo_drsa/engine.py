@@ -43,7 +43,7 @@ class IMO_DRSAEngine():
         self.rules = None
 
     def fit(self, problem: Problem, objectives: List[Callable] = None, verbose: bool = False, visualise=False,
-            to_file=True, pymoo_verbose=False):
+            to_file=False, pymoo_verbose=False):
         """
         Fit the IMO-DRSA solver.
 
