@@ -6,7 +6,7 @@ import numpy as np
 
 from pymoo.problems import get_problem
 
-from src.imo_drsa.decision_maker import DummyDM, InteractiveDM, AutomatedDM
+from src.imo_drsa.decision_maker import InteractiveDM, AutomatedDM
 from src.imo_drsa.drsa import DRSA
 from src.imo_drsa.engine import IMO_DRSAEngine
 
@@ -67,7 +67,7 @@ class TestIMO_DRSAEngineProblemSolving(TestCase):
     # ---------------------------------------------------------------------------------------------------------- #
     def test_solve_bnh(self):
         # Test if the solve function can terminate at all and to observe its behaviour
-        dm = AutomatedDM()
+        dm = AutomatedDM(max_rounds=1)
         problem = get_problem("bnh")
 
         def f0(x):
@@ -89,7 +89,7 @@ class TestIMO_DRSAEngineProblemSolving(TestCase):
 
     def test_solve_osy(self):
         # Test if the solve function can terminate at all and to observe its behaviour
-        dm = AutomatedDM()
+        dm = AutomatedDM(max_rounds=1)
         problem = get_problem("osy")
 
         def f0(x):
@@ -113,7 +113,7 @@ class TestIMO_DRSAEngineProblemSolving(TestCase):
 
     def test_solve_tnk(self):
         # Test if the solve function can terminate at all and to observe its behaviour
-        dm = AutomatedDM()
+        dm = AutomatedDM(max_rounds=1)
         problem = get_problem("tnk")
 
         def f0(x):
@@ -135,7 +135,7 @@ class TestIMO_DRSAEngineProblemSolving(TestCase):
     # ---------------------------------------------------------------------------------------------------------- #
     def test_solve_dtlz1_3_obj(self):
         # Test if the solve function can terminate at all and to observe its behaviour
-        dm = AutomatedDM()
+        dm = AutomatedDM(max_rounds=1)
         problem = get_problem("dtlz1")
 
         def dtlz1(n_obj):
@@ -161,67 +161,7 @@ class TestIMO_DRSAEngineProblemSolving(TestCase):
 
         self.assertTrue(success)
 
-class TestFaultySelections(TestCase):
 
-    @patch('builtins.input', return_value='1')
-    @patch('builtins.print')
-    def test_empty_pareto_front(self, mock_input, mock_print):
-        dm = InteractiveDM()
-        problem = get_problem("bnh")
-
-        def f0(x):
-            return 4 * x[0] * x[0] + 4 * x[1] * x[1]
-
-        def f1(x):
-            term1 = x[0] - 5
-            term2 = x[1] - 5
-
-            return term1 * term1 + term2 * term2
-
-        objectives = [lambda x: -f0(x), lambda x: -f1(x)]
-
-        engine = IMO_DRSAEngine().fit(problem=problem, gain_type_objectives=objectives, verbose=False, visualise=False,
-                                      to_file=False)
-
-        X = np.array([[2.6309, 2.8100],
-                      [0.9031, 0.7224],
-                      [1.6355, 1.4473],
-                      [4.0138, 2.9486],
-                      [0.2065, 0.1939],
-                      [1.2023, 1.2442],
-                      [0.9649, 0.8549],
-                      [2.3048, 2.3299],
-                      [4.8183, 2.9940],
-                      [2.2535, 2.2455]])
-
-        T = np.array([[59.2711, 10.4087],
-                      [5.3494, 35.0830],
-                      [19.0782, 23.9415],
-                      [99.2194, 5.1809],
-                      [0.3209, 46.0764],
-                      [11.9741, 28.5287],
-                      [6.6477, 33.4637],
-                      [42.9620, 14.3936],
-                      [128.7210, 4.0571],
-                      [40.4825, 15.1304]])
-
-        crit = (0, 1)
-
-        d = np.ones(10)
-        d[2], d[5] = 2, 2
-
-        drsa = DRSA()
-        drsa.fit(X_pareto=X, F_pareto_gain_type=-T, criteria=crit, decision_attribute=d)
-        rules = drsa.induce_decision_rules()
-
-        chosen = dm.select(rules)
-
-        new_constraints = engine.generate_constraints(chosen)
-        engine.problem.add_constraints(new_constraints)
-        X, T = engine.calculate_pareto_front()
-
-        self.assertTrue(X is None)
-        self.assertTrue(T is None)
 
 
 

@@ -51,6 +51,9 @@ class ProblemExtender():
                 Each g(x) should return either a scalar (elementwise=True)
                 or a 1d array length pop_size (elementwise=False).
                 """
+                if not constraints:
+                    return
+
                 if self._extra_constraints is None:
                     self._extra_constraints = []
 

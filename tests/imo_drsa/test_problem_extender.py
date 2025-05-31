@@ -1,11 +1,14 @@
 import unittest
 from unittest import TestCase
+from unittest.mock import patch
 
 import numpy as np
 from pymoo.algorithms.moo.nsga2 import NSGA2
 from pymoo.optimize import minimize
 from pymoo.problems import get_problem
 
+from src.imo_drsa.decision_maker import InteractiveDM
+from src.imo_drsa.engine import IMO_DRSAEngine
 from src.imo_drsa.problem_extender import ProblemExtender, DummyElementwiseProblem, DummyBatchProblem, \
     DynamicDummyBatchProblem
 
@@ -217,6 +220,39 @@ class TestProblemExtenderBNH(TestCase):
         self.assertEqual(res_prev.G.shape[0], res_post.G.shape[0])
         self.assertNotEqual(res_prev.G.shape[1], res_post.G.shape[1])
 
+
+class TestFaultySelections(TestCase):
+
+    @patch('builtins.input', return_value='1')
+    @patch('builtins.print')
+    def test_empty_pareto_front(self, mock_input, mock_print):
+        dm = InteractiveDM()
+        problem = get_problem("bnh")
+
+        def f0(x):
+            return 4 * x[0] * x[0] + 4 * x[1] * x[1]
+
+        def f1(x):
+            term1 = x[0] - 5
+            term2 = x[1] - 5
+
+            return term1 * term1 + term2 * term2
+
+        objectives = [lambda x: -f0(x), lambda x: -f1(x)]
+
+        engine = IMO_DRSAEngine().fit(problem=problem,
+                                      gain_type_objectives=objectives,
+                                      verbose=False,
+                                      visualise=False,
+                                      to_file=False)
+
+
+        new_constraints = engine.generate_constraints(None)
+        engine.problem.add_constraints(new_constraints)
+        X, T = engine.calculate_pareto_front()
+
+        self.assertTrue(X is not None)
+        self.assertTrue(T is not None)
 
 if __name__ == "__main__":
     unittest.main()

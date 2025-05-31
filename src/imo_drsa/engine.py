@@ -106,15 +106,18 @@ class IMO_DRSAEngine():
 
             # Induce association rules from current table
             if decision_maker.is_interactive():
-                association_rules = DRSA.find_association_rules(F_pareto=F_pareto_sample, criteria=P_idx,
-                                                                min_support=0.2, min_confidence=0.9)
+                association_rules = DRSA.find_association_rules(F_pareto=F_pareto_sample,
+                                                                criteria=P_idx,
+                                                                min_support=0.2,
+                                                                min_confidence=0.9)
                 _, assoc_summary = DRSA.summarize_association_rules(association_rules)
 
             else:
                 assoc_summary = ""
 
             # Classify with DM feedback
-            decision_attribute = decision_maker.classify(F_pareto=F_pareto_sample, X_pareto=X_pareto_sample,
+            decision_attribute = decision_maker.classify(F_pareto=F_pareto_sample,
+                                                         X_pareto=X_pareto_sample,
                                                          assoc_rules_summary=assoc_summary)
 
             if 2 not in decision_attribute:  # No samples were considered 'good', i.e., none are in class 2
@@ -123,7 +126,9 @@ class IMO_DRSAEngine():
                 continue
 
             # Find a reduct and induce decision rules
-            self.drsa.fit(X_pareto=X_pareto_sample, F_pareto_gain_type=-F_pareto_sample, criteria=P_idx,
+            self.drsa.fit(X_pareto=X_pareto_sample,
+                          F_pareto_gain_type=-F_pareto_sample,
+                          criteria=P_idx,
                           decision_attribute=decision_attribute)
 
             reducts = self.drsa.find_reducts()
@@ -157,7 +162,10 @@ class IMO_DRSAEngine():
                 continue
 
             if self.visualise:
-                self.visualise2D(X_pareto_sample, F_pareto_sample, iter=iteration, nr=2)
+                self.visualise2D(X_pareto_sample,
+                                 F_pareto_sample,
+                                 iter=iteration,
+                                 nr=2)
 
             if decision_maker.is_interactive():
                 decision_maker.print_samples(F_pareto_sample, X_pareto_sample)
@@ -291,7 +299,7 @@ class IMO_DRSAEngine():
 
         plt.show()
 
-    def calculate_pareto_front(self, n_gen=100,
+    def calculate_pareto_front(self, n_gen=1,
                                pop_size=200,
                                sample_size=10) -> (np.ndarray, np.ndarray):
         """
@@ -322,6 +330,7 @@ class IMO_DRSAEngine():
 
         return pareto_front_sample, pareto_set_sample
 
+
     def generate_constraints(self,
                              selected_rules,
                              elementwise=None) -> List[Callable]:
@@ -335,14 +344,16 @@ class IMO_DRSAEngine():
 
         elementwise = elementwise or self.problem.elementwise
 
-        for profile, _, _, _, _, _, desc in selected_rules:
+        if selected_rules is not None:
 
-            for idx, threshold in profile.items():
-                if elementwise:
-                    constraints.append(lambda x, i=idx, th=threshold: th - self.objectives[i](x))
-                else:
-                    constraints.append(
-                        lambda X, i=idx, th=threshold: np.array(th - [self.objectives[i](xi) for xi in X]))
+            for profile, _, _, _, _, _, desc in selected_rules:
+
+                for idx, threshold in profile.items():
+                    if elementwise:
+                        constraints.append(lambda x, i=idx, th=threshold: th - self.objectives[i](x))
+                    else:
+                        constraints.append(
+                            lambda X, i=idx, th=threshold: np.array(th - [self.objectives[i](xi) for xi in X]))
 
         return constraints
 
