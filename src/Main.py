@@ -26,7 +26,7 @@ if __name__ == "__main__":
     engine = IMO_DRSAEngine().fit(problem=problem, objectives=objectives,
                                   verbose=True,   # Set Ture to be given print out updates
                                   visualise=True, # Set True to be given 2D plots of the current pareto fronts and sets
-                                  to_file=True)   # Set True to save outputs to “results_YYYYMMDD_HHMMSS/”)
+                                  to_file=True)   # Set True to save outputs to /results_YYYYMMDD_HHMMSS/)
 
     # 5. Run the engine
     success = engine.run(dm, max_iter=4)
