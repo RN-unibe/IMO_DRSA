@@ -238,6 +238,8 @@ class DRSA:
         conds = []
 
         for idx, val in profile.items():
+            # Note here, this is done, because the objectivs were passed to DRSA as gain-type, i.e., as -F(x).
+            # So, here the signs are inverted again, to show the DM the actual inequalities!!!
             #op = ">=" if self.direction == 'up' else "<="
             op = "<=" if self.direction == 'up' else ">=" # Still gain type!!!!!
             conds.append(f"f_{idx + 1}(x) {op} {-val}") # Still gain type!!!!!
